@@ -123,6 +123,13 @@ namespace Zazerkalye.Visual
             return go;
         }
 
+        public static GameObject Cube(string name, Vector3 scale, Color color, Transform parent = null)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Setup(go, name, scale, color, parent, false);
+            return go;
+        }
+
         static void Setup(GameObject go, string name, Vector3 scale, Color color, Transform parent, bool transparent)
         {
             go.name = name;
