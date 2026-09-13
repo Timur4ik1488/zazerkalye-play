@@ -186,8 +186,13 @@ namespace Zazerkalye.Player
 
         void LateUpdate()
         {
-            if (VisualRoot != null)
-                VisualRoot.localScale = Vector3.Lerp(VisualRoot.localScale, Vector3.one, Time.deltaTime * 10f);
+            if (VisualRoot == null) return;
+            VisualRoot.localScale = Vector3.Lerp(VisualRoot.localScale, Vector3.one, Time.deltaTime * 10f);
+            if (_facing.sqrMagnitude > 0.001f)
+            {
+                var look = Quaternion.LookRotation(_facing, Vector3.up);
+                VisualRoot.rotation = Quaternion.Slerp(VisualRoot.rotation, look, 1f - Mathf.Exp(-10f * Time.deltaTime));
+            }
         }
     }
 }

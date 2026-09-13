@@ -8,7 +8,7 @@ namespace Zazerkalye.Player
         public Transform Target;
         public float Distance = 7.4f;
         public float Height = 2.2f;
-        public float FollowSmooth = 12f;
+        public float FollowSmooth = 18f;
         public float LookSmooth = 14f;
         public float ShakeDecay = 8f;
         public float YawSpeed = 140f;
@@ -22,6 +22,8 @@ namespace Zazerkalye.Player
         float _pitch = 22f;
         Vector3 _shake;
         float _shakeMag;
+        Vector3 _lastMouse;
+        bool _hasLastMouse;
 
         public void Punch(float amount = 0.18f) => _shakeMag = Mathf.Max(_shakeMag, amount);
 
@@ -46,18 +48,23 @@ namespace Zazerkalye.Player
             if (Input.GetKey(KeyCode.Q)) _yaw -= YawSpeed * dt;
             if (Input.GetKey(KeyCode.E)) _yaw += YawSpeed * dt;
 
+            var mouse = Input.mousePosition;
+            var delta = _hasLastMouse ? mouse - _lastMouse : Vector3.zero;
+            _lastMouse = mouse;
+            _hasLastMouse = true;
+
             bool overUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
             bool orbit = !overUi && (Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2));
             if (orbit)
             {
-                _yaw += Input.GetAxis("Mouse X") * MouseSensitivity * 12f;
-                _pitch -= Input.GetAxis("Mouse Y") * MouseSensitivity * 8f;
+                _yaw += delta.x * MouseSensitivity * 0.18f;
+                _pitch -= delta.y * MouseSensitivity * 0.18f;
             }
             _pitch = Mathf.Clamp(_pitch, MinPitch, MaxPitch);
 
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            float scroll = Input.mouseScrollDelta.y;
             if (Mathf.Abs(scroll) > 0.0001f)
-                Distance = Mathf.Clamp(Distance - scroll * 6f, MinDistance, MaxDistance);
+                Distance = Mathf.Clamp(Distance - scroll * 1.1f, MinDistance, MaxDistance);
         }
 
         void ApplyPose(float t)

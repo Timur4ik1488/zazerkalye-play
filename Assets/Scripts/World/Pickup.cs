@@ -13,6 +13,7 @@ namespace Zazerkalye.World
         public System.Action<Pickup> OnCollected;
 
         Vector3 _origin;
+        float _spin;
         bool _taken;
         float _radius = 0.7f;
 
@@ -46,6 +47,8 @@ namespace Zazerkalye.World
 
         void Update()
         {
+            _spin += Time.deltaTime * 50f;
+            transform.rotation = Quaternion.Euler(0f, _spin, 0f);
             transform.position = _origin + Vector3.up * (0.2f + Mathf.Sin(Time.time * 2.5f) * 0.12f);
         }
 
