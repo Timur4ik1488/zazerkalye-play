@@ -4,7 +4,7 @@ namespace Zazerkalye.Data
     {
         public const float MatchSeconds = 150f;
         public const float WorldRadius = 42f;
-        public const float KokRange = 2.4f;
+        public const float KokRange = 2.9f;
         public const float KokCooldown = 0.28f;
         public const float DashCooldown = 1.15f;
         public const float DashDuration = 0.22f;
@@ -13,7 +13,7 @@ namespace Zazerkalye.Data
         public const float ComboWindow = 2.6f;
         public const int MaxHp = 3;
         public const float HurtInvuln = 1.1f;
-        public const float SpawnGrace = 2.5f;
+        public const float SpawnGrace = 4f;
         public const float NightAtSecondsLeft = 60f;
     }
 

@@ -17,6 +17,17 @@ namespace Zazerkalye.World
         bool _taken;
         float _radius = 0.7f;
 
+        public void InitShard()
+        {
+            Kind = PickupKind.Shard;
+            CharacterView.Attach("pacanoid", transform, 1.15f);
+            CharacterView.Label(transform, "СЛЕД", 1.5f, VisualPalette.Pacanoid);
+            AddLight(VisualPalette.Pacanoid, 9f, 2.6f);
+            _radius = 1.35f;
+            _origin = transform.position;
+            _origin.y = 0f;
+        }
+
         public void InitKukichi()
         {
             Kind = PickupKind.Kukichi;
@@ -26,20 +37,12 @@ namespace Zazerkalye.World
             _origin.y = 0f;
         }
 
-        public void InitShard()
-        {
-            Kind = PickupKind.Shard;
-            CharacterView.Attach("pacanoid", transform, 1.15f);
-            _radius = 1.25f;
-            _origin = transform.position;
-            _origin.y = 0f;
-        }
-
         public void InitPower(PowerKind power)
         {
             Kind = PickupKind.Power;
             Power = power;
             CharacterView.Attach("power", transform, 0.85f);
+            AddLight(new Color(0.7f, 0.55f, 0.95f), 5f, 1.4f);
             _radius = 1.0f;
             _origin = transform.position;
             _origin.y = 0f;
@@ -70,6 +73,16 @@ namespace Zazerkalye.World
             Destroy(gameObject);
             return true;
         }
+
+        void AddLight(Color color, float range, float intensity)
+        {
+            var l = gameObject.AddComponent<Light>();
+            l.type = LightType.Point;
+            l.color = color;
+            l.range = range;
+            l.intensity = intensity;
+            l.shadows = LightShadows.None;
+        }
     }
 
     public class SecretInteractable : MonoBehaviour
@@ -84,6 +97,7 @@ namespace Zazerkalye.World
         {
             Type = SecretType.Mirror;
             CharacterView.Attach("istukanus", transform, 2.7f);
+            CharacterView.Label(transform, "Истуканус · подойди", 3.05f, VisualPalette.UiAccent);
         }
 
         public void InitWell()
@@ -94,11 +108,12 @@ namespace Zazerkalye.World
             var water = MeshFactory.Cylinder("Water", new Vector3(0.85f, 0.05f, 0.85f), new Color(0.25f, 0.35f, 0.55f, 0.7f), transform);
             water.transform.localPosition = Vector3.up * 0.35f;
             water.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Transparent(new Color(0.25f, 0.35f, 0.55f, 0.7f));
+            CharacterView.Label(transform, "Колодец", 1.2f, VisualPalette.Mirror);
         }
 
         public void ResetForMatch() => _used = false;
 
-        public bool TryActivate(Vector3 playerPos, float range = 2.4f)
+        public bool TryActivate(Vector3 playerPos, float range = 2.8f)
         {
             if (_used) return false;
             var d = playerPos - transform.position;

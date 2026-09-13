@@ -6,7 +6,7 @@ namespace Zazerkalye.Visual
     public static class VisualPalette
     {
         public static readonly Color Fog = new(0.12f, 0.18f, 0.17f, 1f);
-        public static readonly Color Ambient = new(0.22f, 0.28f, 0.30f, 1f);
+        public static readonly Color Ambient = new(0.28f, 0.32f, 0.30f, 1f);
         public static readonly Color KeyLight = new(1.00f, 0.86f, 0.68f, 1f);
         public static readonly Color FillLight = new(0.35f, 0.48f, 0.55f, 1f);
         public static readonly Color Ground = new(0.16f, 0.22f, 0.18f, 1f);
@@ -49,6 +49,50 @@ namespace Zazerkalye.Visual
             return m;
         }
 
+        public static Material Painted(Color color)
+        {
+            Ensure();
+            var m = new Material(_lit);
+            var tex = ProcTex.For(color);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            else if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+            if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
+            m.mainTexture = tex;
+            float h, s, v;
+            Color.RGBToHSV(color, out h, out s, out v);
+            bool metal = h > 0.08f && h < 0.16f && s > 0.35f && v > 0.45f;
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", metal ? 0.72f : 0.22f);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metal ? 0.55f : 0.04f);
+            bool glow = (color.g > 0.55f && color.g > color.r + 0.12f) ||
+                        (color.r > 0.72f && color.g > 0.45f && color.b < 0.35f);
+            if (glow) GlowOn(m, color * 0.55f);
+            return m;
+        }
+
+        public static Material Glow(Color color)
+        {
+            var m = Painted(color);
+            GlowOn(m, color * 1.4f);
+            return m;
+        }
+
+        public static Material Tiled(Texture2D tex, float tile)
+        {
+            var m = Textured(tex);
+            if (m.HasProperty("_BaseMap")) m.SetTextureScale("_BaseMap", new Vector2(tile, tile));
+            if (m.HasProperty("_MainTex")) m.SetTextureScale("_MainTex", new Vector2(tile, tile));
+            m.DisableKeyword("_ALPHATEST_ON");
+            return m;
+        }
+
+        static void GlowOn(Material m, Color emission)
+        {
+            m.EnableKeyword("_EMISSION");
+            if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", emission);
+            if (m.HasProperty("_EmissionMap")) m.SetTexture("_EmissionMap", Texture2D.whiteTexture);
+        }
+
         public static Material Textured(Texture2D tex)
         {
             Ensure();
@@ -60,9 +104,6 @@ namespace Zazerkalye.Visual
             m.mainTexture = tex;
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.14f);
             if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.02f);
-            if (m.HasProperty("_Cutoff")) m.SetFloat("_Cutoff", 0.2f);
-            if (m.HasProperty("_AlphaClip")) m.SetFloat("_AlphaClip", 1f);
-            m.EnableKeyword("_ALPHATEST_ON");
             return m;
         }
 
@@ -138,7 +179,7 @@ namespace Zazerkalye.Visual
             Object.Destroy(go.GetComponent<Collider>());
             go.GetComponent<Renderer>().sharedMaterial = transparent
                 ? RuntimeMaterials.Transparent(color)
-                : RuntimeMaterials.Lit(color);
+                : RuntimeMaterials.Painted(color);
         }
     }
 }

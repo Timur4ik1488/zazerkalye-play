@@ -24,7 +24,7 @@ namespace Zazerkalye.Core
         readonly List<GroveNpc> _npcs = new();
         SecretInteractable _mirror;
         SecretInteractable _well;
-        Transform _shardMarker;
+        QuestBeacon _beacon;
 
         float _timeLeft = MatchConfig.MatchSeconds;
         int _kukichi, _kokked, _shards, _score, _combo, _maxCombo;
@@ -48,6 +48,11 @@ namespace Zazerkalye.Core
         public bool Night => _night;
         public int Wave => _wave;
         public bool Ended => _ended;
+        public string QuestTitle { get; private set; } = "";
+        public string QuestHint { get; private set; } = "";
+        public string InteractHint { get; private set; } = "";
+        public Vector3 QuestWorld { get; private set; }
+        public bool QuestHasPoint { get; private set; }
 
         public void PlaceWorld(SecretInteractable mirror, SecretInteractable well, IEnumerable<GroveNpc> npcs)
         {
@@ -56,12 +61,9 @@ namespace Zazerkalye.Core
             _npcs.Clear();
             if (npcs != null) _npcs.AddRange(npcs);
             WireInteractables();
-            if (_shardMarker == null && WorldRoot != null)
-            {
-                var markerGo = MeshFactory.Sphere("ShardMarker", Vector3.one * 0.35f, VisualPalette.UiAccent, WorldRoot);
-                _shardMarker = markerGo.transform;
-                _shardMarker.gameObject.SetActive(false);
-            }
+            if (_beacon == null && WorldRoot != null)
+                _beacon = QuestBeacon.Create(WorldRoot);
+            RefreshQuest();
         }
 
         void WireInteractables()
@@ -81,7 +83,7 @@ namespace Zazerkalye.Core
             _wave = 0;
             _wave1 = _wave2 = _wave4 = _mirrorHint = false;
             _introHint = false;
-            _introHintAt = Time.unscaledTime + 5.5f;
+            _introHintAt = Time.unscaledTime + 7f;
             _comboTimer = 0f;
 
             RenderSettings.fogColor = VisualPalette.Fog;
@@ -89,7 +91,11 @@ namespace Zazerkalye.Core
             RenderSettings.ambientLight = VisualPalette.Ambient;
             if (KeyLight != null)
             {
-                if (_dayKeyColor == default) _dayKeyColor = KeyLight.color;
+                if (_dayKeyColor == default)
+                {
+                    _dayKeyColor = KeyLight.color;
+                    _dayKeyIntensity = KeyLight.intensity;
+                }
                 KeyLight.color = VisualPalette.KeyLight;
                 KeyLight.intensity = _dayKeyIntensity;
             }
@@ -110,7 +116,8 @@ namespace Zazerkalye.Core
             save = SaveService.Unlock(save, "polenych");
             SaveService.Write(save);
 
-            OnToast?.Invoke("Поленыч преклонил колено. ПВЗ открыт. Собери 3 следа пацаноида.");
+            OnToast?.Invoke("Задание: собери 3 зелёных следа. Стрелка внизу показывает, куда идти.");
+            RefreshQuest();
             OnHudDirty?.Invoke();
         }
 
@@ -146,7 +153,7 @@ namespace Zazerkalye.Core
             if (!_introHint && Time.unscaledTime >= _introHintAt)
             {
                 _introHint = true;
-                OnToast?.Invoke("F — кок, Shift — рывок, ПКМ / Q·E — камера. Комбо кокалки множит кукичи.");
+                OnToast?.Invoke("F — кокни бобыля перед собой расчёской. Не обязательно, но даёт кукичи и очки.");
             }
 
             TickMilestones();
@@ -154,7 +161,7 @@ namespace Zazerkalye.Core
             CollectNearby();
             UpdateSwamp();
             ContactDamage();
-            UpdateShardMarker();
+            RefreshQuest();
             if (_timeLeft <= 0f) Finish(_shards >= 3);
         }
 
@@ -177,12 +184,12 @@ namespace Zazerkalye.Core
                 SaveService.Write(SaveService.Unlock(SaveService.Load(), "jvachnik"));
                 foreach (var npc in _npcs) npc?.AppearAtNight();
                 TriggerWave(3, "НОЧНАЯ ВОЛНА");
-                OnToast?.Invoke("Ночь. Жвачники стаей. У болот бобыли злеют. Акакий пустит переждать.");
+                OnToast?.Invoke("Ночь. Жвачники кусаются — не стой рядом. Акакий (подпись над ним) пустит переждать.");
             }
             if (!_mirrorHint && t <= 45f && _shards < 3 && !_mirrorFound)
             {
                 _mirrorHint = true;
-                OnToast?.Invoke("Истуканус недвижим в роще. Его вопрос открывает третий след.");
+                OnToast?.Invoke("Два следа есть. Третий откроет каменный идол Истуканус — иди к жёлтой стрелке.");
             }
             if (!_wave4 && t <= 30f) { _wave4 = true; TriggerWave(4, "ФИНАЛЬНЫЙ НАПЛЫВ"); }
         }
@@ -333,7 +340,11 @@ namespace Zazerkalye.Core
                 case PickupKind.Shard:
                     _shards++;
                     _score += 120;
-                    OnToast?.Invoke($"След пацаноида {_shards}/3. Равновесие ещё не целое.");
+                    OnToast?.Invoke($"След {_shards}/3. " + (_shards < 2
+                        ? "Ищи следующее зелёное свечение."
+                        : _shards == 2
+                            ? "Теперь подойди к каменному идолу Истуканусу."
+                            : "Все три! Роща отпускает."));
                     SaveService.Write(SaveService.Unlock(SaveService.Load(), "pacanoid"));
                     if (_shards >= 3) Finish(true);
                     break;
@@ -371,7 +382,7 @@ namespace Zazerkalye.Core
                 _mirrorFound = true;
                 if (_shards < 3) SpawnShard();
                 SaveService.Write(SaveService.Unlock(SaveService.Load(), "istukanus"));
-                OnToast?.Invoke("Истуканус: «Брунявая Чуня или Чунявая Бруня?» — обои. Третий след открыт.");
+                OnToast?.Invoke("Истуканус открыл третий след. Забери зелёное свечение — и победишь.");
                 _score += 100;
             }
             else
@@ -418,9 +429,10 @@ namespace Zazerkalye.Core
                 var to = e.transform.position - Player.transform.position;
                 to.y = 0f;
                 if (to.magnitude > range) continue;
-                float dot = Vector3.Dot(Player.Facing, to.normalized);
-                bool behind = dot < -0.15f;
-                if (!behind && dot < 0.05f && to.magnitude > 1.2f) continue;
+                float dist = to.magnitude;
+                float dot = dist < 0.05f ? 1f : Vector3.Dot(Player.Facing, to.normalized);
+                bool behind = dot < -0.2f;
+                if (dist > 1.5f && dot < 0.2f) continue;
                 int hitDmg = dmg;
                 if (e.Kind == MobKind.Hard && behind) hitDmg = Mathf.Max(hitDmg, 2);
                 e.ReceiveKok(hitDmg);
@@ -458,26 +470,88 @@ namespace Zazerkalye.Core
             Player.SetSwampSlow(inSwamp ? 0.55f : 1f);
         }
 
-        void UpdateShardMarker()
+        void RefreshQuest()
         {
-            if (_shardMarker == null) return;
+            InteractHint = "";
+            if (Player == null)
+            {
+                QuestHasPoint = false;
+                return;
+            }
+            var pos = Player.transform.position;
             Pickup nearest = null;
             float best = float.MaxValue;
-            var pos = Player.transform.position;
             foreach (var p in _pickups)
             {
                 if (!p || p.Kind != PickupKind.Shard) continue;
                 float d = (p.transform.position - pos).sqrMagnitude;
                 if (d < best) { best = d; nearest = p; }
             }
-            if (nearest == null)
+
+            QuestTitle = $"Собери 3 следа пацаноида   {_shards}/3";
+            if (nearest != null)
             {
-                _shardMarker.gameObject.SetActive(false);
-                return;
+                QuestHint = _shards == 0
+                    ? "Иди к зелёному столбу света. Парные зелёные головы — это след. Подбери его."
+                    : _shards == 1
+                        ? "Ещё один след на поляне — снова к зелёному свечению."
+                        : "Третий след открыт. Забери его — и заход выигран.";
+                QuestWorld = nearest.transform.position;
+                QuestHasPoint = true;
+                if (best < 16f) InteractHint = "Подойди вплотную — след возьмётся сам";
+                _beacon?.Show(QuestWorld, VisualPalette.Pacanoid);
             }
-            _shardMarker.gameObject.SetActive(true);
-            var above = nearest.transform.position + Vector3.up * 2.2f;
-            _shardMarker.position = above;
+            else if (_shards < 3 && _mirror != null && !_mirrorFound)
+            {
+                QuestHint = "Следов на поляне больше нет. Подойди к каменному идолу Истуканусу — он откроет третий.";
+                QuestWorld = _mirror.transform.position;
+                QuestHasPoint = true;
+                float d = Xz(pos, _mirror.transform.position);
+                if (d < 5f) InteractHint = "Подойди к идолу вплотную";
+                _beacon?.Show(QuestWorld, VisualPalette.UiAccent);
+            }
+            else if (_shards < 3)
+            {
+                QuestHint = "Истуканус открыл след. Ищи новое зелёное свечение.";
+                QuestHasPoint = false;
+                _beacon?.Hide();
+            }
+            else
+            {
+                QuestTitle = "Следы собраны";
+                QuestHint = "Роща отпускает.";
+                QuestHasPoint = false;
+                _beacon?.Hide();
+            }
+
+            if (_night && _shards < 3)
+                QuestHint += "  Ночь: не стой у жвачников. Shift — рывок. Акакий укроет.";
+
+            foreach (var npc in _npcs)
+            {
+                if (npc == null || !npc.gameObject.activeInHierarchy) continue;
+                if (npc.Hazard && npc.InReach(pos, 5f))
+                    InteractHint = "Коленыч бьёт при касании — Shift, беги зигзагом";
+                else if (!npc.Hazard && npc.InReach(pos, 3.2f) && InteractHint.Length == 0)
+                    InteractHint = "Поговорить: " + NpcTitle(npc.Id);
+            }
+        }
+
+        static string NpcTitle(string id) => id switch
+        {
+            "polenych" => "Поленыч",
+            "akaky" => "Акакий",
+            "kazimir" => "Казимир",
+            "mihail" => "Михаил",
+            "pedal" => "Мальчик-педаль",
+            "scripach" => "Скрипач",
+            _ => id
+        };
+
+        static float Xz(Vector3 a, Vector3 b)
+        {
+            a.y = b.y = 0f;
+            return Vector3.Distance(a, b);
         }
 
         void ContactDamage()
@@ -527,7 +601,7 @@ namespace Zazerkalye.Core
         {
             if (_ended) return;
             _ended = true;
-            if (_shardMarker != null) _shardMarker.gameObject.SetActive(false);
+            _beacon?.Hide();
             bool traces = perfectGoal && _shards >= 3;
             var result = new MatchResult
             {

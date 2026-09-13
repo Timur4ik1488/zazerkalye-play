@@ -39,6 +39,18 @@ namespace Zazerkalye.World
             };
             float h = kneeling ? 1.7f : id == "kolenych" || id == "scripach" ? 2.15f : 2.0f;
             CharacterView.Attach(tex, transform, h);
+            string plate = id switch
+            {
+                "polenych" => "Поленыч",
+                "kolenych" => "ОПАСНО · Коленыч",
+                "akaky" => "Акакий",
+                "kazimir" => "Казимир",
+                "mihail" => "Михаил",
+                "pedal" => "Мальчик-педаль",
+                "scripach" => "Скрипач",
+                _ => id
+            };
+            CharacterView.Label(transform, plate, h + 0.35f, hazard ? new Color(0.95f, 0.35f, 0.28f) : VisualPalette.UiText);
             if (nightOnly) gameObject.SetActive(false);
         }
 

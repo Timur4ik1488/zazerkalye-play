@@ -21,7 +21,10 @@ namespace Zazerkalye.UI
 
         Text _hudStats;
         Text _hudGoal;
+        Text _hudHint;
+        Text _hudPrompt;
         Text _toast;
+        Image _compass;
         Text _resultsBody;
         Text _bestiaryBody;
         Text _resultsNote;
@@ -115,6 +118,11 @@ namespace Zazerkalye.UI
             var sb = new StringBuilder();
             sb.AppendLine(title);
             sb.AppendLine();
+            if (result.Shards >= 3)
+                sb.AppendLine("Задание выполнено: 3 следа собраны.");
+            else
+                sb.AppendLine($"Задание не закрыто: следов {result.Shards}/3. Нужно три.");
+            sb.AppendLine();
             sb.AppendLine($"Счёт: {result.Score}");
             sb.AppendLine($"Кукичи: {result.Kukichi}   (2 кукича = 1 пакич)");
             sb.AppendLine($"Кокнуто: {result.Kokked}");
@@ -150,22 +158,43 @@ namespace Zazerkalye.UI
         {
             if (_toast == null) return;
             _toast.text = msg;
-            _toastUntil = Time.unscaledTime + 2.6f;
+            _toastUntil = Time.unscaledTime + 3.5f;
         }
 
         public void RefreshHud()
         {
             if (_match == null || _hudStats == null) return;
             int secs = Mathf.Max(0, Mathf.CeilToInt(_match.TimeLeft));
+            string hearts = $"Жизни {_match.Hp}/{MatchConfig.MaxHp}";
             _hudStats.text =
-                $"HP {_match.Hp}/{MatchConfig.MaxHp}   {secs / 60:0}:{secs % 60:00}\n" +
-                $"Счёт {_match.Score}   Кукичи {_match.Kukichi}   Следы {_match.Shards}/3\n" +
-                (_match.Combo > 1 ? $"Комбо ×{_match.Combo}" : "");
-            _hudGoal.text = _match.Night
-                ? "Ночь: жвачники стаей · бобыли у болот злые · Акакий пустит переждать"
-                : "3 следа пацаноида · кокалка-расчёска · не путай Поленыча с Коленычем";
+                $"{hearts}    {secs / 60:0}:{secs % 60:00}\n" +
+                $"Счёт {_match.Score}   Кукичи {_match.Kukichi}" +
+                (_match.Combo > 1 ? $"   Комбо ×{_match.Combo}" : "");
+            if (_hudGoal != null) _hudGoal.text = _match.QuestTitle;
+            if (_hudHint != null) _hudHint.text = _match.QuestHint;
+            if (_hudPrompt != null) _hudPrompt.text = _match.InteractHint;
             if (_toast != null && Time.unscaledTime > _toastUntil)
                 _toast.text = "";
+            RefreshCompass();
+        }
+
+        void RefreshCompass()
+        {
+            if (_compass == null) return;
+            if (_match == null || !_match.QuestHasPoint || _match.Player == null || Camera.main == null)
+            {
+                _compass.enabled = false;
+                return;
+            }
+            _compass.enabled = true;
+            var to = _match.QuestWorld - _match.Player.transform.position;
+            to.y = 0f;
+            var cam = Camera.main.transform;
+            var f = Vector3.ProjectOnPlane(cam.forward, Vector3.up);
+            var r = Vector3.ProjectOnPlane(cam.right, Vector3.up);
+            if (f.sqrMagnitude < 0.01f) f = Vector3.forward;
+            float ang = Mathf.Atan2(Vector3.Dot(to, r), Vector3.Dot(to, f)) * Mathf.Rad2Deg;
+            _compass.rectTransform.localEulerAngles = new Vector3(0f, 0f, -ang);
         }
 
         void Update()
@@ -191,13 +220,13 @@ namespace Zazerkalye.UI
             rt.anchorMax = new Vector2(0.9f, 0.88f);
             title.color = VisualPalette.UiAccent;
 
-            var sub = Label(root.transform, "Сумеречная роща · сессия 2–5 минут", 28, TextAnchor.UpperCenter);
+            var sub = Label(root.transform, "Собери 3 зелёных следа за 2:30", 28, TextAnchor.UpperCenter);
             sub.rectTransform.anchorMin = new Vector2(0.15f, 0.52f);
             sub.rectTransform.anchorMax = new Vector2(0.85f, 0.62f);
             sub.color = VisualPalette.UiText * 0.85f;
 
             var blurb = Label(root.transform,
-                "Сатор Арепыч входит через ПВЗ. Кокалка успокаивает бобылей. Следы пацаноида держат равновесие.",
+                "Сатор Арепыч входит в Сумеречную рощу. Главное — три светящихся следа пацаноида. Кокай бобылей на F, от опасности — Shift.",
                 22, TextAnchor.MiddleCenter);
             blurb.rectTransform.anchorMin = new Vector2(0.16f, 0.42f);
             blurb.rectTransform.anchorMax = new Vector2(0.84f, 0.52f);
@@ -223,24 +252,60 @@ namespace Zazerkalye.UI
             var root = Panel("Hud", new Color(0, 0, 0, 0));
             root.GetComponent<Image>().raycastTarget = false;
 
-            _hudGoal = Label(root.transform, "", 22, TextAnchor.UpperCenter);
-            _hudGoal.rectTransform.anchorMin = new Vector2(0.15f, 0.90f);
-            _hudGoal.rectTransform.anchorMax = new Vector2(0.85f, 0.98f);
-            _hudGoal.color = VisualPalette.UiText;
+            var banner = new GameObject("QuestBanner", typeof(RectTransform), typeof(Image));
+            banner.transform.SetParent(root.transform, false);
+            var brt = banner.GetComponent<RectTransform>();
+            brt.anchorMin = new Vector2(0.22f, 0.80f);
+            brt.anchorMax = new Vector2(0.78f, 0.98f);
+            brt.offsetMin = Vector2.zero;
+            brt.offsetMax = Vector2.zero;
+            banner.GetComponent<Image>().color = new Color(0.04f, 0.06f, 0.07f, 0.72f);
+            banner.GetComponent<Image>().raycastTarget = false;
+
+            _hudGoal = Label(banner.transform, "", 26, TextAnchor.UpperCenter);
+            _hudGoal.rectTransform.anchorMin = new Vector2(0.04f, 0.52f);
+            _hudGoal.rectTransform.anchorMax = new Vector2(0.96f, 0.96f);
+            _hudGoal.color = VisualPalette.UiAccent;
             _hudGoal.raycastTarget = false;
 
-            _hudStats = Label(root.transform, "", 26, TextAnchor.UpperLeft);
+            _hudHint = Label(banner.transform, "", 20, TextAnchor.UpperCenter);
+            _hudHint.rectTransform.anchorMin = new Vector2(0.05f, 0.04f);
+            _hudHint.rectTransform.anchorMax = new Vector2(0.95f, 0.56f);
+            _hudHint.color = VisualPalette.UiText;
+            _hudHint.raycastTarget = false;
+
+            _hudStats = Label(root.transform, "", 24, TextAnchor.UpperLeft);
             _hudStats.rectTransform.anchorMin = new Vector2(0.03f, 0.72f);
-            _hudStats.rectTransform.anchorMax = new Vector2(0.45f, 0.90f);
+            _hudStats.rectTransform.anchorMax = new Vector2(0.40f, 0.90f);
             _hudStats.alignment = TextAnchor.UpperLeft;
             _hudStats.color = VisualPalette.UiText;
             _hudStats.raycastTarget = false;
 
+            _hudPrompt = Label(root.transform, "", 22, TextAnchor.LowerCenter);
+            _hudPrompt.rectTransform.anchorMin = new Vector2(0.25f, 0.14f);
+            _hudPrompt.rectTransform.anchorMax = new Vector2(0.75f, 0.22f);
+            _hudPrompt.color = VisualPalette.UiAccent;
+            _hudPrompt.raycastTarget = false;
+
             _toast = Label(root.transform, "", 24, TextAnchor.UpperCenter);
-            _toast.rectTransform.anchorMin = new Vector2(0.18f, 0.76f);
-            _toast.rectTransform.anchorMax = new Vector2(0.82f, 0.88f);
+            _toast.rectTransform.anchorMin = new Vector2(0.18f, 0.68f);
+            _toast.rectTransform.anchorMax = new Vector2(0.82f, 0.80f);
             _toast.color = VisualPalette.UiAccent;
             _toast.raycastTarget = false;
+
+            var compassGo = new GameObject("Compass", typeof(RectTransform), typeof(Image));
+            compassGo.transform.SetParent(root.transform, false);
+            var crt = compassGo.GetComponent<RectTransform>();
+            crt.anchorMin = new Vector2(0.465f, 0.71f);
+            crt.anchorMax = new Vector2(0.535f, 0.79f);
+            crt.offsetMin = Vector2.zero;
+            crt.offsetMax = Vector2.zero;
+            _compass = compassGo.GetComponent<Image>();
+            var arrow = ProcTex.Arrow();
+            _compass.sprite = Sprite.Create(arrow, new Rect(0f, 0f, arrow.width, arrow.height), new Vector2(0.5f, 0.5f));
+            _compass.color = Color.white;
+            _compass.raycastTarget = false;
+            _compass.preserveAspect = true;
 
             var vignette = new GameObject("Vignette", typeof(RectTransform), typeof(Image));
             vignette.transform.SetParent(root.transform, false);
@@ -254,7 +319,7 @@ namespace Zazerkalye.UI
             img.raycastTarget = false;
             vignette.transform.SetAsFirstSibling();
 
-            var keys = Label(root.transform, "F — кок · Shift — рывок · ПКМ / Q·E — камера", 16, TextAnchor.LowerCenter);
+            var keys = Label(root.transform, "F — кок бобыля   Shift — рывок   стрелка — к заданию", 16, TextAnchor.LowerCenter);
             keys.rectTransform.anchorMin = new Vector2(0.26f, 0.01f);
             keys.rectTransform.anchorMax = new Vector2(0.62f, 0.07f);
             keys.color = VisualPalette.UiText * 0.55f;

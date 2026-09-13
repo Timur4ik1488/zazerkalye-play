@@ -109,8 +109,8 @@ namespace Zazerkalye.Core
             if (cam.GetComponent<ThirdPersonCamera>() == null)
                 cam.gameObject.AddComponent<ThirdPersonCamera>();
 
-            _keyLight = CreateDirectionalLight("KeyLight", VisualPalette.KeyLight, 1.15f, new Vector3(38f, -35f, 0f), LightShadows.Soft);
-            CreateDirectionalLight("FillLight", VisualPalette.FillLight, 0.35f, new Vector3(15f, 140f, 0f), LightShadows.None);
+            _keyLight = CreateDirectionalLight("KeyLight", VisualPalette.KeyLight, 1.4f, new Vector3(38f, -35f, 0f), LightShadows.Soft);
+            CreateDirectionalLight("FillLight", VisualPalette.FillLight, 0.5f, new Vector3(15f, 140f, 0f), LightShadows.None);
         }
 
         Light CreateDirectionalLight(string name, Color color, float intensity, Vector3 euler, LightShadows shadows)
@@ -168,7 +168,7 @@ namespace Zazerkalye.Core
             polenychGo.transform.position = new Vector3(2.4f, 0f, 3.2f);
             var polenych = polenychGo.AddComponent<GroveNpc>();
             polenych.Init("polenych",
-                "Поленыч преклонил колено. ПВЗ открыт. Три следа пацаноида — и равновесие вернётся.",
+                "Задание: собери 3 зелёных следа. Два уже в роще — за ними стрелка. Третий откроет каменный идол.",
                 NpcLook.Tree, kneeling: true);
 
             var akakyGo = new GameObject("Akaky");
@@ -176,7 +176,7 @@ namespace Zazerkalye.Core
             akakyGo.transform.position = new Vector3(9f, 0f, 11f);
             var akaky = akakyGo.AddComponent<GroveNpc>();
             akaky.Init("akaky",
-                "Акакий Куролесов: «Днём кокай, ночью беги от жвачников. Ночь можно переждать у меня.»",
+                "Акакий: если наступила ночь — подбеги ко мне. Жвачники кусаются, у меня можно переждать.",
                 NpcLook.Humanoid, repeatable: true);
 
             var kazimirGo = new GameObject("Kazimir");
@@ -184,7 +184,7 @@ namespace Zazerkalye.Core
             kazimirGo.transform.position = new Vector3(-14f, 0f, 6f);
             var kazimir = kazimirGo.AddComponent<GroveNpc>();
             kazimir.Init("kazimir",
-                "Казимир унёс ложку пацаноидов. Их двое — без ложек равновесие ещё злее.",
+                "Казимир. Ложки пацаноидов у него — но тебе нужны не ложки, а три зелёных следа.",
                 NpcLook.Wolf);
 
             var mihailGo = new GameObject("Mihail");
@@ -208,7 +208,7 @@ namespace Zazerkalye.Core
             kolenychGo.transform.position = new Vector3(-8f, 0f, -16f);
             var kolenych = kolenychGo.AddComponent<GroveNpc>();
             kolenych.Init("kolenych",
-                "Коленыч преклонил полено! Рывок зигзагом!",
+                "Это Коленыч, не Поленыч! Рывок на Shift и беги зигзагом.",
                 NpcLook.Bone, hazard: true);
 
             var scripachGo = new GameObject("Scripach");
@@ -235,7 +235,7 @@ namespace Zazerkalye.Core
         {
             var go = new GameObject("Player");
             go.transform.SetParent(root, false);
-            go.transform.position = Vector3.zero;
+            go.transform.position = new Vector3(2.2f, 0f, 1.4f);
             var cc = go.AddComponent<CharacterController>();
             cc.height = 1.9f;
             cc.radius = 0.35f;
@@ -256,7 +256,7 @@ namespace Zazerkalye.Core
                 _secrets.Pedal, _secrets.Kolenych, _secrets.Scripach
             });
             _match.Player.ResetForMatch();
-            _match.Player.Warp(Vector3.zero);
+            _match.Player.Warp(new Vector3(2.2f, 0f, 1.4f));
             _match.Cam?.SnapToTarget();
             _match.Begin();
             _ui.ShowHud();

@@ -21,6 +21,7 @@ namespace Zazerkalye.World
 
             var ground = MeshFactory.Plane("Ground", new Vector3(10f, 1f, 10f), VisualPalette.Ground, root);
             ground.transform.position = Vector3.zero;
+            ground.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Tiled(ProcTex.Ground(), 14f);
 
             var floor = new GameObject("GroundCollider");
             floor.transform.SetParent(root, false);

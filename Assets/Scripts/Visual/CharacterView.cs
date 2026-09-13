@@ -32,7 +32,47 @@ namespace Zazerkalye.Visual
                 default: BuildAkaky(kit); break;
             }
             go.transform.localScale = Vector3.one * height;
+            AddShadow(go.transform);
+            if (id != "kukichi" && id != "pacanoid" && id != "power" && id != "sator"
+                && id != "bobyl" && id != "bobyl_hard" && id != "jvachnik")
+                go.AddComponent<FigurineIdle>();
             return go;
+        }
+
+        static void AddShadow(Transform root)
+        {
+            var sh = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Object.Destroy(sh.GetComponent<Collider>());
+            sh.name = "BlobShadow";
+            sh.transform.SetParent(root, false);
+            sh.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+            sh.transform.localScale = new Vector3(0.55f, 0.012f, 0.55f);
+            sh.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Transparent(new Color(0f, 0f, 0f, 0.4f));
+            sh.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        public static void Label(Transform parent, string text, float y, Color color)
+        {
+            var go = new GameObject("Name");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0f, y, 0f);
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = text;
+            tm.fontSize = 42;
+            tm.characterSize = 0.055f;
+            tm.anchor = TextAnchor.LowerCenter;
+            tm.alignment = TextAlignment.Center;
+            tm.color = color;
+            tm.fontStyle = FontStyle.Bold;
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font != null)
+            {
+                tm.font = font;
+                var rend = go.GetComponent<Renderer>();
+                if (rend != null && font.material != null)
+                    rend.sharedMaterial = font.material;
+            }
+            go.AddComponent<Billboard>();
         }
 
         sealed class Kit
@@ -49,7 +89,7 @@ namespace Zazerkalye.Visual
                 go.transform.localPosition = pos;
                 go.transform.localRotation = Quaternion.Euler(euler);
                 go.transform.localScale = scale;
-                go.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Lit(color);
+                go.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Painted(color);
                 return go.transform;
             }
 

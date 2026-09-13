@@ -50,7 +50,7 @@ namespace Zazerkalye.Enemies
             if (_hitFlash > 0f)
             {
                 _hitFlash -= Time.deltaTime;
-                Tint(Color.white);
+                Tint(new Color(1f, 0.92f, 0.45f));
                 if (_hitFlash <= 0f) RestoreTint();
             }
             if (Target == null) return;
@@ -119,7 +119,7 @@ namespace Zazerkalye.Enemies
         {
             Hp -= damage;
             _hitFlash = 0.2f;
-            Tint(Color.white);
+            Tint(new Color(1f, 0.92f, 0.45f));
             if (Hp <= 0) { OnDied?.Invoke(this); Destroy(gameObject); return true; }
             return false;
         }
