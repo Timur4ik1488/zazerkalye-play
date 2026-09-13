@@ -1,0 +1,1 @@
+/* Local stub. On Yandex Games the platform injects the real SDK. */
