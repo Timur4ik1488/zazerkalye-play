@@ -1,15 +1,25 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace Zazerkalye.Player
 {
     public class ThirdPersonCamera : MonoBehaviour
     {
         public Transform Target;
-        public Vector3 Offset = new(0.6f, 3.8f, -7.4f);
-        public float FollowSmooth = 9f;
-        public float LookSmooth = 12f;
+        public float Distance = 7.4f;
+        public float Height = 2.2f;
+        public float FollowSmooth = 12f;
+        public float LookSmooth = 14f;
         public float ShakeDecay = 8f;
+        public float YawSpeed = 140f;
+        public float MouseSensitivity = 2.4f;
+        public float MinPitch = 8f;
+        public float MaxPitch = 55f;
+        public float MinDistance = 4.2f;
+        public float MaxDistance = 14f;
 
+        float _yaw = 0f;
+        float _pitch = 22f;
         Vector3 _shake;
         float _shakeMag;
 
@@ -18,9 +28,7 @@ namespace Zazerkalye.Player
         public void SnapToTarget()
         {
             if (Target == null) return;
-            transform.position = Target.position + Offset;
-            var look = Target.position + Vector3.up * 1.4f;
-            transform.rotation = Quaternion.LookRotation((look - transform.position).normalized, Vector3.up);
+            ApplyPose(1f);
             _shakeMag = 0f;
             _shake = Vector3.zero;
         }
@@ -28,18 +36,44 @@ namespace Zazerkalye.Player
         void LateUpdate()
         {
             if (Target == null || !Target.gameObject.activeInHierarchy) return;
-            var desired = Target.position + Offset;
+            ReadOrbit();
+            ApplyPose(1f - Mathf.Exp(-FollowSmooth * Time.deltaTime));
+        }
+
+        void ReadOrbit()
+        {
+            float dt = Time.deltaTime;
+            if (Input.GetKey(KeyCode.Q)) _yaw -= YawSpeed * dt;
+            if (Input.GetKey(KeyCode.E)) _yaw += YawSpeed * dt;
+
+            bool overUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            bool orbit = !overUi && (Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2));
+            if (orbit)
+            {
+                _yaw += Input.GetAxis("Mouse X") * MouseSensitivity * 12f;
+                _pitch -= Input.GetAxis("Mouse Y") * MouseSensitivity * 8f;
+            }
+            _pitch = Mathf.Clamp(_pitch, MinPitch, MaxPitch);
+
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.0001f)
+                Distance = Mathf.Clamp(Distance - scroll * 6f, MinDistance, MaxDistance);
+        }
+
+        void ApplyPose(float t)
+        {
+            var rot = Quaternion.Euler(_pitch, _yaw, 0f);
+            var desired = Target.position + Vector3.up * Height + rot * new Vector3(0f, 0f, -Distance);
             if (_shakeMag > 0.001f)
             {
                 _shake = Random.insideUnitSphere * _shakeMag;
                 _shakeMag = Mathf.Lerp(_shakeMag, 0f, Time.deltaTime * ShakeDecay);
             }
             else _shake = Vector3.zero;
-            transform.position = Vector3.Lerp(transform.position, desired + _shake, 1f - Mathf.Exp(-FollowSmooth * Time.deltaTime));
+            transform.position = Vector3.Lerp(transform.position, desired + _shake, t);
             var look = Target.position + Vector3.up * 1.4f;
-            transform.rotation = Quaternion.Slerp(transform.rotation,
-                Quaternion.LookRotation((look - transform.position).normalized, Vector3.up),
-                1f - Mathf.Exp(-LookSmooth * Time.deltaTime));
+            var lookRot = Quaternion.LookRotation((look - transform.position).normalized, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRot, 1f - Mathf.Exp(-LookSmooth * Time.deltaTime));
         }
     }
 }

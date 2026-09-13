@@ -49,6 +49,26 @@ namespace Zazerkalye.Visual
             return m;
         }
 
+        public static Material Textured(Texture2D tex)
+        {
+            var shader = Shader.Find("Sprites/Default")
+                         ?? Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Unlit/Transparent")
+                         ?? Shader.Find("Universal Render Pipeline/Lit");
+            var m = new Material(shader);
+            m.color = Color.white;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+            if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
+            m.mainTexture = tex;
+            if (m.HasProperty("_Cutoff")) m.SetFloat("_Cutoff", 0.35f);
+            if (m.HasProperty("_AlphaClip")) m.SetFloat("_AlphaClip", 1f);
+            m.EnableKeyword("_ALPHATEST_ON");
+            m.renderQueue = 3000;
+            return m;
+        }
+
         public static Material Transparent(Color color)
         {
             var m = Lit(color, 0.1f, 0f);

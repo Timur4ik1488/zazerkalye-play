@@ -30,30 +30,18 @@ namespace Zazerkalye.Enemies
             {
                 case MobKind.Bobyl:
                     Hp = 1; Speed = Random.Range(2.0f, 2.8f);
-                    BuildBobyl(VisualPalette.Bobyl, 1f); break;
+                    CharacterView.Attach("bobyl", transform, 1.35f); break;
                 case MobKind.Hard:
                     Hp = 2; Speed = Random.Range(1.7f, 2.2f);
-                    BuildBobyl(VisualPalette.HardBobyl, 1.15f); break;
+                    CharacterView.Attach("bobyl_hard", transform, 1.55f); break;
                 case MobKind.Jvachnik:
                     Hp = 1; Speed = Random.Range(3.4f, 4.2f);
-                    BuildJvachnik(); break;
+                    CharacterView.Attach("jvachnik", transform, 1.9f); break;
             }
             _renderers = GetComponentsInChildren<Renderer>();
             _baseColors = new Color[_renderers.Length];
             for (int i = 0; i < _renderers.Length; i++)
                 _baseColors[i] = ReadColor(_renderers[i]);
-        }
-
-        void BuildBobyl(Color color, float scale)
-        {
-            var body = MeshFactory.Sphere("Body", Vector3.one * 0.95f * scale, color, transform);
-            body.transform.localPosition = new Vector3(0f, 0.55f * scale, 0f);
-        }
-
-        void BuildJvachnik()
-        {
-            var body = MeshFactory.Capsule("Body", new Vector3(0.9f, 0.7f, 0.9f), VisualPalette.Jvachnik, transform);
-            body.transform.localPosition = new Vector3(0f, 0.85f, 0f);
         }
 
         void Update()

@@ -146,7 +146,7 @@ namespace Zazerkalye.Core
             if (!_introHint && Time.unscaledTime >= _introHintAt)
             {
                 _introHint = true;
-                OnToast?.Invoke("Комбо кокалки множит кукичи. Рывок (Shift) — зигзаг от Коленыча.");
+                OnToast?.Invoke("F — кок, Shift — рывок, ПКМ / Q·E — камера. Комбо кокалки множит кукичи.");
             }
 
             TickMilestones();

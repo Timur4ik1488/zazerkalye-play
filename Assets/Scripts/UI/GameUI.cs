@@ -211,9 +211,9 @@ namespace Zazerkalye.UI
             Button(root.transform, "Войти через ПВЗ", new Vector2(0.32f, 0.24f), new Vector2(0.68f, 0.32f), () => OnStartMatch?.Invoke());
             Button(root.transform, "Хроники Архивариуса", new Vector2(0.32f, 0.14f), new Vector2(0.68f, 0.22f), ShowBestiary);
 
-            var hint = Label(root.transform, "WASD · Пробел / КОК — кок · Shift / РЫВ — рывок", 18, TextAnchor.LowerCenter);
-            hint.rectTransform.anchorMin = new Vector2(0.2f, 0.04f);
-            hint.rectTransform.anchorMax = new Vector2(0.8f, 0.12f);
+            var hint = Label(root.transform, "WASD · F — кок · Shift — рывок · ПКМ / Q·E — камера", 18, TextAnchor.LowerCenter);
+            hint.rectTransform.anchorMin = new Vector2(0.08f, 0.04f);
+            hint.rectTransform.anchorMax = new Vector2(0.92f, 0.12f);
             hint.color = VisualPalette.UiText * 0.5f;
             return root;
         }
@@ -253,6 +253,12 @@ namespace Zazerkalye.UI
             img.color = new Color(0f, 0f, 0f, 0.12f);
             img.raycastTarget = false;
             vignette.transform.SetAsFirstSibling();
+
+            var keys = Label(root.transform, "F — кок · Shift — рывок · ПКМ / Q·E — камера", 16, TextAnchor.LowerCenter);
+            keys.rectTransform.anchorMin = new Vector2(0.26f, 0.01f);
+            keys.rectTransform.anchorMax = new Vector2(0.62f, 0.07f);
+            keys.color = VisualPalette.UiText * 0.55f;
+            keys.raycastTarget = false;
 
             VirtualPad.Create(root.transform, _font);
             return root;

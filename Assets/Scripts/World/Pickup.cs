@@ -12,7 +12,6 @@ namespace Zazerkalye.World
         public PowerKind Power;
         public System.Action<Pickup> OnCollected;
 
-        float _spin;
         Vector3 _origin;
         bool _taken;
         float _radius = 0.7f;
@@ -20,10 +19,7 @@ namespace Zazerkalye.World
         public void InitKukichi()
         {
             Kind = PickupKind.Kukichi;
-            var body = MeshFactory.Sphere("Core", new Vector3(0.32f, 0.28f, 0.32f), VisualPalette.Kukichi, transform);
-            body.transform.localPosition = Vector3.up * 0.32f;
-            var bite = MeshFactory.Sphere("Bite", new Vector3(0.18f, 0.16f, 0.18f), VisualPalette.KukichiBite, transform);
-            bite.transform.localPosition = new Vector3(0.12f, 0.38f, 0.05f);
+            CharacterView.Attach("kukichi", transform, 0.7f);
             _radius = 0.9f;
             _origin = transform.position;
             _origin.y = 0f;
@@ -32,12 +28,7 @@ namespace Zazerkalye.World
         public void InitShard()
         {
             Kind = PickupKind.Shard;
-            var a = MeshFactory.Sphere("PacanoidA", Vector3.one * 0.48f, VisualPalette.Pacanoid, transform);
-            a.transform.localPosition = new Vector3(-0.28f, 0.7f, 0f);
-            var b = MeshFactory.Sphere("PacanoidB", Vector3.one * 0.48f, VisualPalette.Pacanoid * 1.08f, transform);
-            b.transform.localPosition = new Vector3(0.28f, 0.7f, 0f);
-            var glow = MeshFactory.Sphere("Glow", Vector3.one * 1.25f, new Color(0.45f, 0.82f, 0.55f, 0.22f), transform, true);
-            glow.transform.localPosition = Vector3.up * 0.7f;
+            CharacterView.Attach("pacanoid", transform, 1.15f);
             _radius = 1.25f;
             _origin = transform.position;
             _origin.y = 0f;
@@ -47,16 +38,7 @@ namespace Zazerkalye.World
         {
             Kind = PickupKind.Power;
             Power = power;
-            Color c = power switch
-            {
-                PowerKind.Magnet => new Color(0.55f, 0.75f, 0.95f),
-                PowerKind.Rage => new Color(0.90f, 0.35f, 0.28f),
-                PowerKind.Haste => new Color(0.95f, 0.85f, 0.35f),
-                PowerKind.Shield => new Color(0.45f, 0.70f, 0.95f),
-                _ => new Color(0.85f, 0.55f, 0.75f)
-            };
-            var body = MeshFactory.Cylinder("Power", new Vector3(0.45f, 0.2f, 0.45f), c, transform);
-            body.transform.localPosition = Vector3.up * 0.5f;
+            CharacterView.Attach("power", transform, 0.85f);
             _radius = 1.0f;
             _origin = transform.position;
             _origin.y = 0f;
@@ -64,9 +46,7 @@ namespace Zazerkalye.World
 
         void Update()
         {
-            _spin += Time.deltaTime * 90f;
-            transform.rotation = Quaternion.Euler(0f, _spin, 0f);
-            transform.position = _origin + Vector3.up * (0.35f + Mathf.Sin(Time.time * 2.5f) * 0.12f);
+            transform.position = _origin + Vector3.up * (0.2f + Mathf.Sin(Time.time * 2.5f) * 0.12f);
         }
 
         public void MagnetPull(Transform target, float speed)
@@ -100,15 +80,7 @@ namespace Zazerkalye.World
         public void InitIdol()
         {
             Type = SecretType.Mirror;
-            var plinth = MeshFactory.Cylinder("Plinth", new Vector3(0.7f, 0.25f, 0.7f), VisualPalette.Idol * 0.8f, transform);
-            plinth.transform.localPosition = Vector3.up * 0.25f;
-            var body = MeshFactory.Cylinder("Idol", new Vector3(0.55f, 1.1f, 0.55f), VisualPalette.Idol, transform);
-            body.transform.localPosition = Vector3.up * 1.35f;
-            var head = MeshFactory.Sphere("Head", Vector3.one * 0.7f, VisualPalette.Idol * 1.1f, transform);
-            head.transform.localPosition = new Vector3(0f, 2.55f, 0.05f);
-            var plaque = MeshFactory.Plane("Riddle", new Vector3(0.12f, 1f, 0.18f), VisualPalette.Mirror, transform);
-            plaque.transform.localPosition = new Vector3(0f, 1.5f, 0.55f);
-            plaque.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            CharacterView.Attach("istukanus", transform, 2.7f);
         }
 
         public void InitWell()

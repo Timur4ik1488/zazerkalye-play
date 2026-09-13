@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 using Zazerkalye.Data;
 using Zazerkalye.Visual;
 
@@ -37,20 +36,7 @@ namespace Zazerkalye.Player
         {
             VisualRoot = new GameObject("Visual").transform;
             VisualRoot.SetParent(transform, false);
-
-            var coat = MeshFactory.Capsule("Coat", new Vector3(0.85f, 0.95f, 0.75f), VisualPalette.PlayerCoat, VisualRoot);
-            coat.transform.localPosition = new Vector3(0f, 0.95f, 0f);
-            var head = MeshFactory.Sphere("Head", Vector3.one * 0.55f, VisualPalette.PlayerSkin, VisualRoot);
-            head.transform.localPosition = new Vector3(0f, 1.85f, 0.05f);
-            var hood = MeshFactory.Sphere("Hood", new Vector3(0.62f, 0.45f, 0.62f), VisualPalette.PlayerCoat * 0.85f, VisualRoot);
-            hood.transform.localPosition = new Vector3(0f, 2.05f, -0.05f);
-            // Кокалка — расчёска, не палка.
-            var handle = MeshFactory.Cylinder("KokalkaHandle", new Vector3(0.05f, 0.22f, 0.05f), VisualPalette.Comb, VisualRoot);
-            handle.transform.localPosition = new Vector3(0.58f, 1.05f, 0.32f);
-            handle.transform.localRotation = Quaternion.Euler(25f, 0f, -20f);
-            var plate = MeshFactory.Cylinder("KokalkaPlate", new Vector3(0.22f, 0.04f, 0.08f), VisualPalette.Comb * 1.1f, VisualRoot);
-            plate.transform.localPosition = new Vector3(0.62f, 1.28f, 0.42f);
-            plate.transform.localRotation = Quaternion.Euler(70f, 15f, -10f);
+            CharacterView.Attach("sator", VisualRoot, 2.15f);
         }
 
         public void ResetForMatch()
@@ -101,25 +87,16 @@ namespace Zazerkalye.Player
             float speed = MoveSpeed * _swampSlow * (_haste > 0f ? 1.35f : 1f);
             Vector3 vel = _dashLeft > 0f ? _facing * MatchConfig.DashSpeed : wish * speed;
             if (_dashLeft <= 0f && wish.sqrMagnitude > 0.01f)
-            {
                 _facing = wish.normalized;
-                VisualRoot.rotation = Quaternion.Slerp(VisualRoot.rotation, Quaternion.LookRotation(_facing), dt * 12f);
-            }
 
             vel.y = 0f;
             _cc.Move(vel * dt);
             ClampToGrove();
 
-            bool mouseKok = Input.GetMouseButtonDown(0) && !PointerBlockedByUi();
-            if (Input.GetKeyDown(KeyCode.Space) || mouseKok || GameplayInput.ConsumeKok())
+            if (Input.GetKeyDown(KeyCode.F) || Input.GetKeyDown(KeyCode.Space) || GameplayInput.ConsumeKok())
                 TryKok();
             if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift) || GameplayInput.ConsumeDash())
                 TryDash();
-        }
-
-        static bool PointerBlockedByUi()
-        {
-            return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
         }
 
         void ClampToGrove()
