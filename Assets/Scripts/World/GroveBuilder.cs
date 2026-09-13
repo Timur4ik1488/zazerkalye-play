@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Zazerkalye.Data;
 using Zazerkalye.Visual;
@@ -6,6 +7,9 @@ namespace Zazerkalye.World
 {
     public class GroveBuilder : MonoBehaviour
     {
+        public readonly List<Vector3> SwampCenters = new();
+        public const float SwampRadius = 3.4f;
+
         public void Build(Transform root)
         {
             RenderSettings.fog = true;
@@ -17,6 +21,12 @@ namespace Zazerkalye.World
 
             var ground = MeshFactory.Plane("Ground", new Vector3(10f, 1f, 10f), VisualPalette.Ground, root);
             ground.transform.position = Vector3.zero;
+
+            var floor = new GameObject("GroundCollider");
+            floor.transform.SetParent(root, false);
+            floor.transform.position = new Vector3(0f, -0.5f, 0f);
+            var box = floor.AddComponent<BoxCollider>();
+            box.size = new Vector3(MatchConfig.WorldRadius * 3f, 1f, MatchConfig.WorldRadius * 3f);
 
             for (int i = 0; i < 18; i++)
             {
@@ -50,6 +60,10 @@ namespace Zazerkalye.World
             float h = Random.Range(2.4f, 4.2f) * scale;
             var trunk = MeshFactory.Cylinder("Trunk", new Vector3(0.28f * scale, h * 0.5f, 0.28f * scale), VisualPalette.Trunk, tree);
             trunk.transform.localPosition = new Vector3(0f, h * 0.5f, 0f);
+            var cap = tree.gameObject.AddComponent<CapsuleCollider>();
+            cap.center = new Vector3(0f, h * 0.4f, 0f);
+            cap.height = h * 0.85f;
+            cap.radius = 0.32f * scale;
             int canopies = Random.Range(2, 4);
             for (int c = 0; c < canopies; c++)
             {
@@ -60,40 +74,31 @@ namespace Zazerkalye.World
             }
         }
 
-        public void BuildSwamps(Transform root, System.Action<Collider> onEnter, System.Action<Collider> onExit)
+        public void BuildSwamps(Transform root)
         {
+            SwampCenters.Clear();
             for (int i = 0; i < 5; i++)
             {
                 var p = Random.onUnitSphere; p.y = 0f;
                 p = p.normalized * Random.Range(10f, MatchConfig.WorldRadius - 8f);
-                var swamp = MeshFactory.Cylinder($"Swamp_{i}", new Vector3(3.2f, 0.05f, 3.2f), VisualPalette.Swamp, root);
+                SwampCenters.Add(p);
+                var swamp = MeshFactory.Cylinder($"Swamp_{i}", new Vector3(SwampRadius, 0.05f, SwampRadius), VisualPalette.Swamp, root);
                 swamp.transform.position = p + Vector3.up * 0.04f;
                 swamp.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Transparent(VisualPalette.Swamp);
-                var col = swamp.AddComponent<SphereCollider>();
-                col.isTrigger = true;
-                col.radius = 0.55f;
-                var zone = swamp.AddComponent<SwampZone>();
-                zone.OnPlayerEnter = onEnter;
-                zone.OnPlayerExit = onExit;
             }
         }
-    }
 
-    public class SwampZone : MonoBehaviour
-    {
-        public System.Action<Collider> OnPlayerEnter;
-        public System.Action<Collider> OnPlayerExit;
-
-        void OnTriggerEnter(Collider other)
+        public bool IsInSwamp(Vector3 pos)
         {
-            if (other.GetComponentInParent<Zazerkalye.Player.PlayerController>() != null)
-                OnPlayerEnter?.Invoke(other);
-        }
-
-        void OnTriggerExit(Collider other)
-        {
-            if (other.GetComponentInParent<Zazerkalye.Player.PlayerController>() != null)
-                OnPlayerExit?.Invoke(other);
+            var flat = new Vector3(pos.x, 0f, pos.z);
+            float r2 = SwampRadius * SwampRadius;
+            for (int i = 0; i < SwampCenters.Count; i++)
+            {
+                var c = SwampCenters[i];
+                c.y = 0f;
+                if ((flat - c).sqrMagnitude <= r2) return true;
+            }
+            return false;
         }
     }
 }

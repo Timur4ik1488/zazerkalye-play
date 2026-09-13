@@ -13,12 +13,18 @@ namespace Zazerkalye.Core
         public PlayerController Player;
         public ThirdPersonCamera Cam;
         public Transform WorldRoot;
+        public GroveBuilder Grove;
+        public Light KeyLight;
         public System.Action<MatchResult> OnFinished;
         public System.Action<string> OnToast;
         public System.Action OnHudDirty;
 
         readonly List<Enemy> _enemies = new();
         readonly List<Pickup> _pickups = new();
+        readonly List<GroveNpc> _npcs = new();
+        SecretInteractable _mirror;
+        SecretInteractable _well;
+        Transform _shardMarker;
 
         float _timeLeft = MatchConfig.MatchSeconds;
         int _kukichi, _kokked, _shards, _score, _combo, _maxCombo;
@@ -26,8 +32,11 @@ namespace Zazerkalye.Core
         int _hp = MatchConfig.MaxHp;
         int _damageTaken;
         bool _mirrorFound, _eyeFound, _ended, _night;
-        int _wave, _swampDepth;
-        bool _wave1, _wave2, _wave4, _mirrorHint;
+        int _wave;
+        bool _wave1, _wave2, _wave4, _mirrorHint, _introHint;
+        float _introHintAt;
+        Color _dayKeyColor;
+        float _dayKeyIntensity = 1.15f;
 
         public float TimeLeft => _timeLeft;
         public int Kukichi => _kukichi;
@@ -40,6 +49,29 @@ namespace Zazerkalye.Core
         public int Wave => _wave;
         public bool Ended => _ended;
 
+        public void PlaceWorld(SecretInteractable mirror, SecretInteractable well, IEnumerable<GroveNpc> npcs)
+        {
+            _mirror = mirror;
+            _well = well;
+            _npcs.Clear();
+            if (npcs != null) _npcs.AddRange(npcs);
+            WireInteractables();
+            if (_shardMarker == null && WorldRoot != null)
+            {
+                var markerGo = MeshFactory.Sphere("ShardMarker", Vector3.one * 0.35f, VisualPalette.UiAccent, WorldRoot);
+                _shardMarker = markerGo.transform;
+                _shardMarker.gameObject.SetActive(false);
+            }
+        }
+
+        void WireInteractables()
+        {
+            if (_mirror != null) _mirror.OnActivated = OnSecret;
+            if (_well != null) _well.OnActivated = OnSecret;
+            foreach (var npc in _npcs)
+                if (npc != null) npc.OnTalk = OnNpc;
+        }
+
         public void Begin()
         {
             _timeLeft = MatchConfig.MatchSeconds;
@@ -48,25 +80,38 @@ namespace Zazerkalye.Core
             _mirrorFound = _eyeFound = _ended = _night = false;
             _wave = 0;
             _wave1 = _wave2 = _wave4 = _mirrorHint = false;
+            _introHint = false;
+            _introHintAt = Time.unscaledTime + 5.5f;
             _comboTimer = 0f;
-            _swampDepth = 0;
 
             RenderSettings.fogColor = VisualPalette.Fog;
             RenderSettings.fogDensity = 0.028f;
             RenderSettings.ambientLight = VisualPalette.Ambient;
+            if (KeyLight != null)
+            {
+                if (_dayKeyColor == default) _dayKeyColor = KeyLight.color;
+                KeyLight.color = VisualPalette.KeyLight;
+                KeyLight.intensity = _dayKeyIntensity;
+            }
+
+            WireInteractables();
+            _mirror?.ResetForMatch();
+            _well?.ResetForMatch();
+            foreach (var npc in _npcs) npc?.ResetForMatch();
 
             ClearDynamics();
             SpawnInitial();
             Player.OnKok = DoKok;
             Player.OnDash = () => Cam?.Punch(0.12f);
-            OnToast?.Invoke("Сумеречная роща — найди 3 следа пацаноида");
-            OnHudDirty?.Invoke();
-        }
 
-        public void PlaceSecrets(SecretInteractable mirror, SecretInteractable well)
-        {
-            mirror.OnActivated = OnSecret;
-            well.OnActivated = OnSecret;
+            var save = SaveService.Load();
+            save = SaveService.Unlock(save, "sator");
+            save = SaveService.Unlock(save, "bobyl");
+            save = SaveService.Unlock(save, "polenych");
+            SaveService.Write(save);
+
+            OnToast?.Invoke("Поленыч преклонил колено. ПВЗ открыт. Собери 3 следа пацаноида.");
+            OnHudDirty?.Invoke();
         }
 
         void ClearDynamics()
@@ -90,7 +135,7 @@ namespace Zazerkalye.Core
 
         void Update()
         {
-            if (_ended || Player == null) return;
+            if (_ended || Player == null || !isActiveAndEnabled) return;
             _timeLeft -= Time.deltaTime;
             if (_comboTimer > 0f)
             {
@@ -98,11 +143,19 @@ namespace Zazerkalye.Core
                 if (_comboTimer <= 0f) _combo = 0;
             }
 
+            if (!_introHint && Time.unscaledTime >= _introHintAt)
+            {
+                _introHint = true;
+                OnToast?.Invoke("Комбо кокалки множит кукичи. Рывок (Shift) — зигзаг от Коленыча.");
+            }
+
             TickMilestones();
             MagnetPull();
+            CollectNearby();
+            UpdateSwamp();
             ContactDamage();
+            UpdateShardMarker();
             if (_timeLeft <= 0f) Finish(_shards >= 3);
-            OnHudDirty?.Invoke();
         }
 
         void TickMilestones()
@@ -116,14 +169,20 @@ namespace Zazerkalye.Core
                 RenderSettings.fogColor = Color.Lerp(VisualPalette.Fog, VisualPalette.NightTint, 0.55f);
                 RenderSettings.fogDensity = 0.038f;
                 RenderSettings.ambientLight = VisualPalette.NightTint * 1.4f;
+                if (KeyLight != null)
+                {
+                    KeyLight.color = Color.Lerp(VisualPalette.KeyLight, VisualPalette.FillLight, 0.55f);
+                    KeyLight.intensity = 0.55f;
+                }
                 SaveService.Write(SaveService.Unlock(SaveService.Load(), "jvachnik"));
+                foreach (var npc in _npcs) npc?.AppearAtNight();
                 TriggerWave(3, "НОЧНАЯ ВОЛНА");
-                OnToast?.Invoke("Ночь. Жвачники вышли на охоту.");
+                OnToast?.Invoke("Ночь. Жвачники стаей. У болот бобыли злеют. Акакий пустит переждать.");
             }
             if (!_mirrorHint && t <= 45f && _shards < 3 && !_mirrorFound)
             {
                 _mirrorHint = true;
-                OnToast?.Invoke("Зеркало Истукануса где-то в роще…");
+                OnToast?.Invoke("Истуканус недвижим в роще. Его вопрос открывает третий след.");
             }
             if (!_wave4 && t <= 30f) { _wave4 = true; TriggerWave(4, "ФИНАЛЬНЫЙ НАПЛЫВ"); }
         }
@@ -218,12 +277,20 @@ namespace Zazerkalye.Core
             int mult = 1 + _combo / 5;
             int gain = (e.Kind == MobKind.Hard ? 35 : e.Kind == MobKind.Jvachnik ? 50 : 18) * mult;
             _score += gain;
+            _kukichi += Mathf.Max(1, 1 + _combo / 5);
             if (Random.value < 0.35f) SpawnKukichiNear(e.transform.position);
             if (Random.value < 0.12f) SpawnPowerNear(e.transform.position);
             var save = SaveService.Load();
-            if (e.Kind == MobKind.Bobyl) SaveService.Write(SaveService.Unlock(save, "bobyl"));
-            if (e.Kind == MobKind.Hard) SaveService.Write(SaveService.Unlock(save, "bobyl_hard"));
-            if (e.Kind == MobKind.Jvachnik) SaveService.Write(SaveService.Unlock(save, "jvachnik"));
+            if (e.Kind == MobKind.Bobyl) save = SaveService.Unlock(save, "bobyl");
+            if (e.Kind == MobKind.Hard) save = SaveService.Unlock(save, "bobyl_hard");
+            if (e.Kind == MobKind.Jvachnik) save = SaveService.Unlock(save, "jvachnik");
+            if (Random.value < 0.12f)
+            {
+                save = SaveService.Unlock(save, "mihail");
+                _kukichi += 3;
+                OnToast?.Invoke("Михаил забрал скорлупку. +3 кукича");
+            }
+            SaveService.Write(save);
         }
 
         void SpawnKukichiNear(Vector3 pos)
@@ -266,7 +333,7 @@ namespace Zazerkalye.Core
                 case PickupKind.Shard:
                     _shards++;
                     _score += 120;
-                    OnToast?.Invoke($"След пропавшего пацаноида {_shards}/3");
+                    OnToast?.Invoke($"След пацаноида {_shards}/3. Равновесие ещё не целое.");
                     SaveService.Write(SaveService.Unlock(SaveService.Load(), "pacanoid"));
                     if (_shards >= 3) Finish(true);
                     break;
@@ -274,8 +341,9 @@ namespace Zazerkalye.Core
                     if (p.Power == PowerKind.Feast)
                     {
                         _hp = Mathf.Min(MatchConfig.MaxHp, _hp + 1);
-                        _kukichi += 3;
-                        OnToast?.Invoke("Пир: +HP и кукичи");
+                        _kukichi += 8;
+                        OnToast?.Invoke("Пир дядюшки: алмазные соления вовремя.");
+                        SaveService.Write(SaveService.Unlock(SaveService.Load(), "fantasmagor"));
                     }
                     else
                     {
@@ -292,7 +360,7 @@ namespace Zazerkalye.Core
             PowerKind.Magnet => "Магнит кукичей",
             PowerKind.Rage => "Ярость кока",
             PowerKind.Haste => "Ускорение",
-            PowerKind.Shield => "Щит",
+            PowerKind.Shield => "Щит на один удар",
             _ => "Пауэр-ап"
         };
 
@@ -303,7 +371,7 @@ namespace Zazerkalye.Core
                 _mirrorFound = true;
                 if (_shards < 3) SpawnShard();
                 SaveService.Write(SaveService.Unlock(SaveService.Load(), "istukanus"));
-                OnToast?.Invoke("Истуканус: «Брунявая Чуня или Чунявая Бруня?» — обои.");
+                OnToast?.Invoke("Истуканус: «Брунявая Чуня или Чунявая Бруня?» — обои. Третий след открыт.");
                 _score += 100;
             }
             else
@@ -312,9 +380,28 @@ namespace Zazerkalye.Core
                 _hp = Mathf.Min(MatchConfig.MaxHp, _hp + 1);
                 _kukichi += 5;
                 var save = SaveService.Unlock(SaveService.Load(), "spectral");
-                SaveService.Write(SaveService.Unlock(save, "scripach"));
-                OnToast?.Invoke("Спектральный колодец: +1 HP и +5 кукичей");
+                SaveService.Write(save);
+                OnToast?.Invoke("Спектральный колодец под тем же деревом: +1 HP и +5 кукичей");
                 _score += 80;
+            }
+        }
+
+        void OnNpc(GroveNpc npc)
+        {
+            OnToast?.Invoke(npc.Line);
+            if (!string.IsNullOrEmpty(npc.Id))
+                SaveService.Write(SaveService.Unlock(SaveService.Load(), npc.Id));
+            if (npc.Id == "pedal")
+                Player.ApplyPower(PowerKind.Haste);
+            if (npc.Id == "akaky")
+            {
+                Player.ApplyPower(PowerKind.Haste);
+                if (_night)
+                {
+                    _hp = Mathf.Min(MatchConfig.MaxHp, _hp + 1);
+                    Player.ApplyHurtInvuln();
+                    OnToast?.Invoke("Акакий пустил переждать ночь. Пыльца и +HP.");
+                }
             }
         }
 
@@ -332,8 +419,11 @@ namespace Zazerkalye.Core
                 to.y = 0f;
                 if (to.magnitude > range) continue;
                 float dot = Vector3.Dot(Player.Facing, to.normalized);
-                if (dot < 0.05f && to.magnitude > 1.2f) continue;
-                e.ReceiveKok(dmg);
+                bool behind = dot < -0.15f;
+                if (!behind && dot < 0.05f && to.magnitude > 1.2f) continue;
+                int hitDmg = dmg;
+                if (e.Kind == MobKind.Hard && behind) hitDmg = Mathf.Max(hitDmg, 2);
+                e.ReceiveKok(hitDmg);
             }
         }
 
@@ -347,19 +437,72 @@ namespace Zazerkalye.Core
             }
         }
 
+        void CollectNearby()
+        {
+            var pos = Player.transform.position;
+            for (int i = _pickups.Count - 1; i >= 0; i--)
+            {
+                var p = _pickups[i];
+                if (!p) { _pickups.RemoveAt(i); continue; }
+                p.TryCollect(pos);
+            }
+            _mirror?.TryActivate(pos);
+            _well?.TryActivate(pos);
+            foreach (var npc in _npcs)
+                npc?.TryTalk(pos);
+        }
+
+        void UpdateSwamp()
+        {
+            bool inSwamp = Grove != null && Grove.IsInSwamp(Player.transform.position);
+            Player.SetSwampSlow(inSwamp ? 0.55f : 1f);
+        }
+
+        void UpdateShardMarker()
+        {
+            if (_shardMarker == null) return;
+            Pickup nearest = null;
+            float best = float.MaxValue;
+            var pos = Player.transform.position;
+            foreach (var p in _pickups)
+            {
+                if (!p || p.Kind != PickupKind.Shard) continue;
+                float d = (p.transform.position - pos).sqrMagnitude;
+                if (d < best) { best = d; nearest = p; }
+            }
+            if (nearest == null)
+            {
+                _shardMarker.gameObject.SetActive(false);
+                return;
+            }
+            _shardMarker.gameObject.SetActive(true);
+            var above = nearest.transform.position + Vector3.up * 2.2f;
+            _shardMarker.position = above;
+        }
+
         void ContactDamage()
         {
             if (Player.IsInvulnerable) return;
+            var pos = Player.transform.position;
+            foreach (var npc in _npcs)
+            {
+                if (npc == null || !npc.Hazard) continue;
+                if (!npc.InReach(pos, 1.8f)) continue;
+                SaveService.Write(SaveService.Unlock(SaveService.Load(), npc.Id));
+                OnToast?.Invoke(npc.Line);
+                Hurt(1);
+                return;
+            }
             foreach (var e in _enemies)
             {
                 if (!e || !e.CanContactDamage) continue;
                 float dist = Vector3.Distance(
-                    new Vector3(Player.transform.position.x, 0f, Player.transform.position.z),
+                    new Vector3(pos.x, 0f, pos.z),
                     new Vector3(e.transform.position.x, 0f, e.transform.position.z));
                 float reach = e.Kind == MobKind.Jvachnik ? 1.35f : 1.05f;
                 if (dist > reach) continue;
                 if (e.Kind == MobKind.Jvachnik) { Hurt(1); return; }
-                if (_night) { Hurt(1); return; }
+                if (_night && Grove != null && Grove.IsInSwamp(e.transform.position)) { Hurt(1); return; }
             }
         }
 
@@ -373,40 +516,46 @@ namespace Zazerkalye.Core
             }
             _hp -= amount;
             _damageTaken += amount;
+            _combo = 0;
+            _comboTimer = 0f;
             Player.ApplyHurtInvuln();
             Cam?.Punch(0.35f);
             if (_hp <= 0) Finish(false);
-        }
-
-        public void NotifySwamp(bool enter)
-        {
-            if (enter) _swampDepth++;
-            else _swampDepth = Mathf.Max(0, _swampDepth - 1);
-            Player.SetSwampSlow(_swampDepth > 0 ? 0.55f : 1f);
         }
 
         void Finish(bool perfectGoal)
         {
             if (_ended) return;
             _ended = true;
+            if (_shardMarker != null) _shardMarker.gameObject.SetActive(false);
+            bool traces = perfectGoal && _shards >= 3;
             var result = new MatchResult
             {
                 Kukichi = _kukichi,
                 Kokked = _kokked,
                 Shards = _shards,
-                Perfect = perfectGoal && _shards >= 3,
+                Perfect = traces && _damageTaken == 0,
                 MirrorFound = _mirrorFound,
                 EyeFound = _eyeFound,
-                Score = _score + _kukichi * 2 + (_shards >= 3 ? 200 : 0),
+                Score = _score + _kukichi * 2 + (traces ? 200 : 0),
                 MaxCombo = _maxCombo,
                 DamageTaken = _damageTaken
             };
             var save = SaveService.Load();
-            save.Kukichi += result.Kukichi;
+            save = SaveService.AddKukichi(save, result.Kukichi);
             save.MatchesPlayed++;
             save.BestScore = Mathf.Max(save.BestScore, result.Score);
+            if (result.Perfect) save = SaveService.Unlock(save, "fantasmagor");
             SaveService.Write(SaveService.Unlock(save, "sator"));
             OnFinished?.Invoke(result);
+        }
+
+        void OnEnable()
+        {
+            if (_mirror != null) _mirror.OnActivated = OnSecret;
+            if (_well != null) _well.OnActivated = OnSecret;
+            foreach (var npc in _npcs)
+                if (npc != null) npc.OnTalk = OnNpc;
         }
     }
 }

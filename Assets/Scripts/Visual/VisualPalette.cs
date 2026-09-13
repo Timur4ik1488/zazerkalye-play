@@ -20,7 +20,12 @@ namespace Zazerkalye.Visual
         public static readonly Color HardBobyl = new(0.22f, 0.18f, 0.20f, 1f);
         public static readonly Color Jvachnik = new(0.42f, 0.55f, 0.38f, 1f);
         public static readonly Color Kukichi = new(0.86f, 0.62f, 0.28f, 1f);
+        public static readonly Color KukichiBite = new(0.72f, 0.78f, 0.52f, 1f);
         public static readonly Color Shard = new(0.45f, 0.82f, 0.55f, 1f);
+        public static readonly Color Pacanoid = new(0.38f, 0.78f, 0.42f, 1f);
+        public static readonly Color Comb = new(0.72f, 0.58f, 0.38f, 1f);
+        public static readonly Color Bone = new(0.86f, 0.82f, 0.74f, 1f);
+        public static readonly Color Idol = new(0.38f, 0.36f, 0.34f, 1f);
         public static readonly Color Mirror = new(0.55f, 0.72f, 0.78f, 1f);
         public static readonly Color Well = new(0.35f, 0.42f, 0.55f, 1f);
         public static readonly Color UiBg = new(0.06f, 0.08f, 0.09f, 0.92f);
@@ -58,7 +63,15 @@ namespace Zazerkalye.Visual
             if (_lit != null) return;
             var shader = Shader.Find("Universal Render Pipeline/Lit")
                          ?? Shader.Find("Universal Render Pipeline/Simple Lit")
+                         ?? Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Unlit/Color")
+                         ?? Shader.Find("Sprites/Default")
                          ?? Shader.Find("Standard");
+            if (shader == null)
+            {
+                Debug.LogError("[Зазеркалье] No lit/unlit shader found. Run menu Зазеркалье → Configure URP.");
+                shader = Shader.Find("Hidden/InternalErrorShader");
+            }
             _lit = new Material(shader);
         }
     }

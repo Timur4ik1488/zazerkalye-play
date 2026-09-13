@@ -15,26 +15,32 @@ namespace Zazerkalye.World
         float _spin;
         Vector3 _origin;
         bool _taken;
+        float _radius = 0.7f;
 
         public void InitKukichi()
         {
             Kind = PickupKind.Kukichi;
-            var body = MeshFactory.Sphere("Gem", Vector3.one * 0.35f, VisualPalette.Kukichi, transform);
-            body.transform.localPosition = Vector3.up * 0.35f;
-            AddTrigger(0.4f);
+            var body = MeshFactory.Sphere("Core", new Vector3(0.32f, 0.28f, 0.32f), VisualPalette.Kukichi, transform);
+            body.transform.localPosition = Vector3.up * 0.32f;
+            var bite = MeshFactory.Sphere("Bite", new Vector3(0.18f, 0.16f, 0.18f), VisualPalette.KukichiBite, transform);
+            bite.transform.localPosition = new Vector3(0.12f, 0.38f, 0.05f);
+            _radius = 0.9f;
             _origin = transform.position;
+            _origin.y = 0f;
         }
 
         public void InitShard()
         {
             Kind = PickupKind.Shard;
-            var body = MeshFactory.Capsule("Shard", new Vector3(0.35f, 0.55f, 0.35f), VisualPalette.Shard, transform);
-            body.transform.localPosition = Vector3.up * 0.7f;
-            body.transform.localRotation = Quaternion.Euler(20f, 0f, 35f);
-            var glow = MeshFactory.Sphere("Glow", Vector3.one * 0.9f, new Color(0.45f, 0.82f, 0.55f, 0.25f), transform, true);
+            var a = MeshFactory.Sphere("PacanoidA", Vector3.one * 0.48f, VisualPalette.Pacanoid, transform);
+            a.transform.localPosition = new Vector3(-0.28f, 0.7f, 0f);
+            var b = MeshFactory.Sphere("PacanoidB", Vector3.one * 0.48f, VisualPalette.Pacanoid * 1.08f, transform);
+            b.transform.localPosition = new Vector3(0.28f, 0.7f, 0f);
+            var glow = MeshFactory.Sphere("Glow", Vector3.one * 1.25f, new Color(0.45f, 0.82f, 0.55f, 0.22f), transform, true);
             glow.transform.localPosition = Vector3.up * 0.7f;
-            AddTrigger(0.7f);
+            _radius = 1.25f;
             _origin = transform.position;
+            _origin.y = 0f;
         }
 
         public void InitPower(PowerKind power)
@@ -51,37 +57,35 @@ namespace Zazerkalye.World
             };
             var body = MeshFactory.Cylinder("Power", new Vector3(0.45f, 0.2f, 0.45f), c, transform);
             body.transform.localPosition = Vector3.up * 0.5f;
-            AddTrigger(0.55f);
+            _radius = 1.0f;
             _origin = transform.position;
-        }
-
-        void AddTrigger(float radius)
-        {
-            var col = gameObject.AddComponent<SphereCollider>();
-            col.isTrigger = true;
-            col.center = Vector3.up * 0.5f;
-            col.radius = radius;
+            _origin.y = 0f;
         }
 
         void Update()
         {
             _spin += Time.deltaTime * 90f;
             transform.rotation = Quaternion.Euler(0f, _spin, 0f);
-            transform.position = _origin + Vector3.up * (Mathf.Sin(Time.time * 2.5f) * 0.12f);
+            transform.position = _origin + Vector3.up * (0.35f + Mathf.Sin(Time.time * 2.5f) * 0.12f);
         }
 
         public void MagnetPull(Transform target, float speed)
         {
-            _origin = Vector3.MoveTowards(_origin, target.position, speed * Time.deltaTime);
+            var goal = target.position;
+            goal.y = 0f;
+            _origin = Vector3.MoveTowards(_origin, goal, speed * Time.deltaTime);
         }
 
-        void OnTriggerEnter(Collider other)
+        public bool TryCollect(Vector3 playerPos)
         {
-            if (_taken) return;
-            if (other.GetComponentInParent<Zazerkalye.Player.PlayerController>() == null) return;
+            if (_taken) return false;
+            var a = new Vector3(playerPos.x, 0f, playerPos.z);
+            var b = new Vector3(_origin.x, 0f, _origin.z);
+            if ((a - b).sqrMagnitude > _radius * _radius) return false;
             _taken = true;
             OnCollected?.Invoke(this);
             Destroy(gameObject);
+            return true;
         }
     }
 
@@ -93,19 +97,18 @@ namespace Zazerkalye.World
         bool _used;
         float _pulse;
 
-        public void InitMirror()
+        public void InitIdol()
         {
             Type = SecretType.Mirror;
-            var frame = MeshFactory.Cylinder("Frame", new Vector3(0.15f, 1.2f, 0.15f), VisualPalette.Trunk, transform);
-            frame.transform.localPosition = Vector3.up * 1.2f;
-            var glass = MeshFactory.Plane("Glass", new Vector3(0.18f, 1f, 0.28f), VisualPalette.Mirror, transform);
-            glass.transform.localPosition = new Vector3(0f, 1.4f, 0f);
-            glass.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            glass.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Transparent(new Color(0.55f, 0.72f, 0.78f, 0.55f));
-            var col = gameObject.AddComponent<SphereCollider>();
-            col.isTrigger = true;
-            col.center = Vector3.up * 1f;
-            col.radius = 1.4f;
+            var plinth = MeshFactory.Cylinder("Plinth", new Vector3(0.7f, 0.25f, 0.7f), VisualPalette.Idol * 0.8f, transform);
+            plinth.transform.localPosition = Vector3.up * 0.25f;
+            var body = MeshFactory.Cylinder("Idol", new Vector3(0.55f, 1.1f, 0.55f), VisualPalette.Idol, transform);
+            body.transform.localPosition = Vector3.up * 1.35f;
+            var head = MeshFactory.Sphere("Head", Vector3.one * 0.7f, VisualPalette.Idol * 1.1f, transform);
+            head.transform.localPosition = new Vector3(0f, 2.55f, 0.05f);
+            var plaque = MeshFactory.Plane("Riddle", new Vector3(0.12f, 1f, 0.18f), VisualPalette.Mirror, transform);
+            plaque.transform.localPosition = new Vector3(0f, 1.5f, 0.55f);
+            plaque.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         }
 
         public void InitWell()
@@ -116,24 +119,25 @@ namespace Zazerkalye.World
             var water = MeshFactory.Cylinder("Water", new Vector3(0.85f, 0.05f, 0.85f), new Color(0.25f, 0.35f, 0.55f, 0.7f), transform);
             water.transform.localPosition = Vector3.up * 0.35f;
             water.GetComponent<Renderer>().sharedMaterial = RuntimeMaterials.Transparent(new Color(0.25f, 0.35f, 0.55f, 0.7f));
-            var col = gameObject.AddComponent<SphereCollider>();
-            col.isTrigger = true;
-            col.center = Vector3.up * 0.5f;
-            col.radius = 1.5f;
+        }
+
+        public void ResetForMatch() => _used = false;
+
+        public bool TryActivate(Vector3 playerPos, float range = 2.4f)
+        {
+            if (_used) return false;
+            var d = playerPos - transform.position;
+            d.y = 0f;
+            if (d.sqrMagnitude > range * range) return false;
+            _used = true;
+            OnActivated?.Invoke(this);
+            return true;
         }
 
         void Update()
         {
             _pulse += Time.deltaTime;
             transform.localScale = Vector3.one * (1f + Mathf.Sin(_pulse * 2f) * 0.02f);
-        }
-
-        void OnTriggerEnter(Collider other)
-        {
-            if (_used) return;
-            if (other.GetComponentInParent<Zazerkalye.Player.PlayerController>() == null) return;
-            _used = true;
-            OnActivated?.Invoke(this);
         }
     }
 }

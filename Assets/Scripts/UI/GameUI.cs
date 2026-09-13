@@ -1,5 +1,6 @@
 using System.Text;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Zazerkalye.Core;
 using Zazerkalye.Data;
@@ -23,10 +24,14 @@ namespace Zazerkalye.UI
         Text _toast;
         Text _resultsBody;
         Text _bestiaryBody;
+        Text _resultsNote;
+        Text _menuStats;
+        Text _bestiaryTitle;
 
         MatchController _match;
         MatchResult _lastResult;
         float _toastUntil;
+        bool _rewardClaimed;
 
         public System.Action OnStartMatch;
         public System.Action OnBackToMenu;
@@ -36,6 +41,8 @@ namespace Zazerkalye.UI
             _match = match;
             _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (_font == null) _font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            if (_font == null)
+                _font = Font.CreateDynamicFontFromOSFont(new[] { "Segoe UI", "Arial", "Liberation Sans", "DejaVu Sans" }, 16);
 
             var canvasGo = new GameObject("UICanvas");
             canvasGo.transform.SetParent(transform, false);
@@ -47,11 +54,11 @@ namespace Zazerkalye.UI
             scaler.matchWidthOrHeight = 0.5f;
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            if (FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
+            if (FindFirstObjectByType<EventSystem>() == null)
             {
                 var es = new GameObject("EventSystem");
-                es.AddComponent<UnityEngine.EventSystems.EventSystem>();
-                es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                es.AddComponent<EventSystem>();
+                es.AddComponent<StandaloneInputModule>();
             }
 
             _menu = BuildMenu();
@@ -61,9 +68,32 @@ namespace Zazerkalye.UI
             ShowMenu();
         }
 
+        static readonly string[] FateLines =
+        {
+            "Брунявая Чуня или Чунявая Бруня? … Правильный ответ — обои.",
+            "Жвачники выйдут на болота Сумеречной рощи.",
+            "Казимир снова уведёт ложки пацаноидов.",
+            "Дядюшка Фантасмагор ждёт алмазные соления.",
+            "Акакий Куролесов заберётся слишком высоко.",
+            "Болотный Скрипач заведёт путников от Спектрального колодца.",
+            "Поленыч преклонит колено — а Коленыча лучше не встречать."
+        };
+
         public void ShowMenu()
         {
             SetOnly(_menu);
+            RefreshMenuStats();
+        }
+
+        void RefreshMenuStats()
+        {
+            if (_menuStats == null) return;
+            var save = SaveService.Load();
+            int open = 0;
+            if (save.Bestiary != null)
+                foreach (var id in save.Bestiary)
+                    if (!string.IsNullOrEmpty(id)) open++;
+            _menuStats.text = $"Кукичи {save.Kukichi} · Пакичи {save.Pakichi} · Рекорд {save.BestScore} · Хроники {open}/{BestiaryCatalog.All.Length}";
         }
 
         public void ShowHud()
@@ -75,32 +105,44 @@ namespace Zazerkalye.UI
         public void ShowResults(MatchResult result)
         {
             _lastResult = result;
+            _rewardClaimed = false;
             SetOnly(_results);
+            string title = result.Perfect
+                ? "Пацаноидное равновесие"
+                : result.Shards >= 3
+                    ? "Следы собраны. Роща отпускает."
+                    : "Смена оборвана.";
             var sb = new StringBuilder();
-            sb.AppendLine(result.Perfect ? "Следы собраны. Роща отпускает." : "Сессия окончена.");
+            sb.AppendLine(title);
             sb.AppendLine();
             sb.AppendLine($"Счёт: {result.Score}");
-            sb.AppendLine($"Кукичи: {result.Kukichi}");
+            sb.AppendLine($"Кукичи: {result.Kukichi}   (2 кукича = 1 пакич)");
             sb.AppendLine($"Кокнуто: {result.Kokked}");
             sb.AppendLine($"Следы: {result.Shards}/3");
             sb.AppendLine($"Макс. комбо: {result.MaxCombo}");
-            if (result.MirrorFound) sb.AppendLine("Истуканус найден.");
-            if (result.EyeFound) sb.AppendLine("Спектральный колодец открыт.");
+            if (result.MirrorFound) sb.AppendLine("Истуканус задал вопрос.");
+            if (result.EyeFound) sb.AppendLine("Спектральный колодец найден.");
             _resultsBody.text = sb.ToString();
+            if (_resultsNote != null)
+                _resultsNote.text = "Истуканус шепчет: «" + FateLines[Random.Range(0, FateLines.Length)] + "»";
         }
 
         public void ShowBestiary()
         {
             SetOnly(_bestiary);
             var save = SaveService.Load();
+            int open = 0;
             var sb = new StringBuilder();
             foreach (var e in BestiaryCatalog.All)
             {
-                bool unlocked = save.Bestiary.Contains(e.Id);
+                bool unlocked = save.Bestiary != null && save.Bestiary.Contains(e.Id);
+                if (unlocked) open++;
                 sb.AppendLine(unlocked ? $"• {e.Name}" : "• ???");
-                if (unlocked) sb.AppendLine($"  {e.Blurb}");
+                sb.AppendLine(unlocked ? $"  {e.Blurb}" : "  Ещё не встречали в Сумеречной роще.");
                 sb.AppendLine();
             }
+            if (_bestiaryTitle != null)
+                _bestiaryTitle.text = $"Хроники Архивариуса  {open}/{BestiaryCatalog.All.Length}";
             _bestiaryBody.text = sb.ToString();
         }
 
@@ -108,21 +150,20 @@ namespace Zazerkalye.UI
         {
             if (_toast == null) return;
             _toast.text = msg;
-            _toastUntil = Time.unscaledTime + 2.4f;
+            _toastUntil = Time.unscaledTime + 2.6f;
         }
 
         public void RefreshHud()
         {
             if (_match == null || _hudStats == null) return;
-            int secs = Mathf.CeilToInt(_match.TimeLeft);
-            string hearts = new string('♥', Mathf.Max(0, _match.Hp)) + new string('♡', Mathf.Max(0, MatchConfig.MaxHp - _match.Hp));
+            int secs = Mathf.Max(0, Mathf.CeilToInt(_match.TimeLeft));
             _hudStats.text =
-                $"{hearts}   {secs / 60:0}:{secs % 60:00}\n" +
-                $"Счёт { _match.Score}   Кукичи {_match.Kukichi}   Следы {_match.Shards}/3\n" +
+                $"HP {_match.Hp}/{MatchConfig.MaxHp}   {secs / 60:0}:{secs % 60:00}\n" +
+                $"Счёт {_match.Score}   Кукичи {_match.Kukichi}   Следы {_match.Shards}/3\n" +
                 (_match.Combo > 1 ? $"Комбо ×{_match.Combo}" : "");
             _hudGoal.text = _match.Night
-                ? "Ночь в Сумеречной роще — жвачники рядом"
-                : "Собери 3 следа · кокай бобылей · не увязни в болоте";
+                ? "Ночь: жвачники стаей · бобыли у болот злые · Акакий пустит переждать"
+                : "3 следа пацаноида · кокалка-расчёска · не путай Поленыча с Коленычем";
             if (_toast != null && Time.unscaledTime > _toastUntil)
                 _toast.text = "";
         }
@@ -156,16 +197,21 @@ namespace Zazerkalye.UI
             sub.color = VisualPalette.UiText * 0.85f;
 
             var blurb = Label(root.transform,
-                "Третье лицо. Кокалка. Рывок. Короткие заходы без открытого мира — как в GDD.",
+                "Сатор Арепыч входит через ПВЗ. Кокалка успокаивает бобылей. Следы пацаноида держат равновесие.",
                 22, TextAnchor.MiddleCenter);
-            blurb.rectTransform.anchorMin = new Vector2(0.18f, 0.40f);
-            blurb.rectTransform.anchorMax = new Vector2(0.82f, 0.52f);
+            blurb.rectTransform.anchorMin = new Vector2(0.16f, 0.42f);
+            blurb.rectTransform.anchorMax = new Vector2(0.84f, 0.52f);
             blurb.color = VisualPalette.UiText * 0.7f;
 
-            Button(root.transform, "В рощу", new Vector2(0.35f, 0.26f), new Vector2(0.65f, 0.34f), () => OnStartMatch?.Invoke());
-            Button(root.transform, "Бестиарий", new Vector2(0.35f, 0.16f), new Vector2(0.65f, 0.24f), ShowBestiary);
+            _menuStats = Label(root.transform, "", 20, TextAnchor.MiddleCenter);
+            _menuStats.rectTransform.anchorMin = new Vector2(0.18f, 0.34f);
+            _menuStats.rectTransform.anchorMax = new Vector2(0.82f, 0.42f);
+            _menuStats.color = VisualPalette.UiText * 0.8f;
 
-            var hint = Label(root.transform, "WASD · Пробел — кок · Shift — рывок", 18, TextAnchor.LowerCenter);
+            Button(root.transform, "Войти через ПВЗ", new Vector2(0.32f, 0.24f), new Vector2(0.68f, 0.32f), () => OnStartMatch?.Invoke());
+            Button(root.transform, "Хроники Архивариуса", new Vector2(0.32f, 0.14f), new Vector2(0.68f, 0.22f), ShowBestiary);
+
+            var hint = Label(root.transform, "WASD · Пробел / КОК — кок · Shift / РЫВ — рывок", 18, TextAnchor.LowerCenter);
             hint.rectTransform.anchorMin = new Vector2(0.2f, 0.04f);
             hint.rectTransform.anchorMax = new Vector2(0.8f, 0.12f);
             hint.color = VisualPalette.UiText * 0.5f;
@@ -181,17 +227,20 @@ namespace Zazerkalye.UI
             _hudGoal.rectTransform.anchorMin = new Vector2(0.15f, 0.90f);
             _hudGoal.rectTransform.anchorMax = new Vector2(0.85f, 0.98f);
             _hudGoal.color = VisualPalette.UiText;
+            _hudGoal.raycastTarget = false;
 
             _hudStats = Label(root.transform, "", 26, TextAnchor.UpperLeft);
             _hudStats.rectTransform.anchorMin = new Vector2(0.03f, 0.72f);
             _hudStats.rectTransform.anchorMax = new Vector2(0.45f, 0.90f);
             _hudStats.alignment = TextAnchor.UpperLeft;
             _hudStats.color = VisualPalette.UiText;
+            _hudStats.raycastTarget = false;
 
             _toast = Label(root.transform, "", 24, TextAnchor.UpperCenter);
-            _toast.rectTransform.anchorMin = new Vector2(0.2f, 0.78f);
-            _toast.rectTransform.anchorMax = new Vector2(0.8f, 0.86f);
+            _toast.rectTransform.anchorMin = new Vector2(0.18f, 0.76f);
+            _toast.rectTransform.anchorMax = new Vector2(0.82f, 0.88f);
             _toast.color = VisualPalette.UiAccent;
+            _toast.raycastTarget = false;
 
             var vignette = new GameObject("Vignette", typeof(RectTransform), typeof(Image));
             vignette.transform.SetParent(root.transform, false);
@@ -201,9 +250,11 @@ namespace Zazerkalye.UI
             vrt.offsetMin = Vector2.zero;
             vrt.offsetMax = Vector2.zero;
             var img = vignette.GetComponent<Image>();
-            img.color = new Color(0f, 0f, 0f, 0.18f);
+            img.color = new Color(0f, 0f, 0f, 0.12f);
             img.raycastTarget = false;
             vignette.transform.SetAsFirstSibling();
+
+            VirtualPad.Create(root.transform, _font);
             return root;
         }
 
@@ -216,9 +267,14 @@ namespace Zazerkalye.UI
             title.color = VisualPalette.UiAccent;
 
             _resultsBody = Label(root.transform, "", 28, TextAnchor.UpperLeft);
-            _resultsBody.rectTransform.anchorMin = new Vector2(0.25f, 0.35f);
+            _resultsBody.rectTransform.anchorMin = new Vector2(0.25f, 0.38f);
             _resultsBody.rectTransform.anchorMax = new Vector2(0.75f, 0.76f);
             _resultsBody.alignment = TextAnchor.UpperLeft;
+
+            _resultsNote = Label(root.transform, "", 22, TextAnchor.MiddleCenter);
+            _resultsNote.rectTransform.anchorMin = new Vector2(0.2f, 0.32f);
+            _resultsNote.rectTransform.anchorMax = new Vector2(0.8f, 0.38f);
+            _resultsNote.color = VisualPalette.UiAccent;
 
             Button(root.transform, "×2 награда (реклама)", new Vector2(0.30f, 0.22f), new Vector2(0.70f, 0.30f), () =>
             {
@@ -239,10 +295,11 @@ namespace Zazerkalye.UI
         GameObject BuildBestiary()
         {
             var root = Panel("Bestiary", VisualPalette.UiBg);
-            var title = Label(root.transform, "Бестиарий", 48, TextAnchor.UpperCenter);
-            title.rectTransform.anchorMin = new Vector2(0.2f, 0.86f);
-            title.rectTransform.anchorMax = new Vector2(0.8f, 0.96f);
+            var title = Label(root.transform, "Хроники Архивариуса", 40, TextAnchor.UpperCenter);
+            title.rectTransform.anchorMin = new Vector2(0.12f, 0.86f);
+            title.rectTransform.anchorMax = new Vector2(0.88f, 0.96f);
             title.color = VisualPalette.UiAccent;
+            _bestiaryTitle = title;
 
             var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
             scrollGo.transform.SetParent(root.transform, false);
@@ -259,7 +316,7 @@ namespace Zazerkalye.UI
             crt.anchorMin = new Vector2(0f, 1f);
             crt.anchorMax = new Vector2(1f, 1f);
             crt.pivot = new Vector2(0.5f, 1f);
-            crt.sizeDelta = new Vector2(0f, 1800f);
+            crt.sizeDelta = new Vector2(0f, 2400f);
 
             _bestiaryBody = Label(content.transform, "", 22, TextAnchor.UpperLeft);
             _bestiaryBody.rectTransform.anchorMin = new Vector2(0.04f, 0f);
@@ -312,12 +369,13 @@ namespace Zazerkalye.UI
 
         async System.Threading.Tasks.Task DoubleRewardAsync()
         {
+            if (_rewardClaimed) return;
             bool ok = await YandexGamesSdk.ShowRewarded();
             if (!ok) return;
-            var save = SaveService.Load();
-            save.Kukichi += _lastResult.Kukichi;
-            SaveService.Write(save);
-            Toast("Награда удвоена");
+            _rewardClaimed = true;
+            SaveService.Write(SaveService.AddKukichi(SaveService.Load(), _lastResult.Kukichi));
+            SaveService.Write(SaveService.Unlock(SaveService.Load(), "fantasmagor"));
+            if (_resultsNote != null) _resultsNote.text = "Алмазные соления вовремя. Дядюшка Фантасмагор доволен.";
         }
 
         async System.Threading.Tasks.Task ReplayAsync()
@@ -342,6 +400,7 @@ namespace Zazerkalye.UI
             btn.onClick.AddListener(onClick);
             var label = Label(go.transform, text, 24, TextAnchor.MiddleCenter);
             label.color = VisualPalette.UiText;
+            label.raycastTarget = false;
         }
     }
 }

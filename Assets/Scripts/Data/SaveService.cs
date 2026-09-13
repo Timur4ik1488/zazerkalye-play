@@ -12,7 +12,7 @@ namespace Zazerkalye.Data
             if (!PlayerPrefs.HasKey(Key)) return new SaveData();
             try
             {
-                var data = JsonUtility.FromJson<SaveData>(PlayerPrefs.GetString(Key));
+                var data = JsonUtility.FromJson<SaveData>(PlayerPrefs.GetString(Key)) ?? new SaveData();
                 data.Bestiary ??= new List<string> { "sator", "fantasmagor" };
                 return data;
             }
@@ -27,7 +27,19 @@ namespace Zazerkalye.Data
 
         public static SaveData Unlock(SaveData data, string id)
         {
+            data ??= new SaveData();
+            data.Bestiary ??= new List<string> { "sator", "fantasmagor" };
             if (!data.Bestiary.Contains(id)) data.Bestiary.Add(id);
+            return data;
+        }
+
+        /// <summary>Wiki: 2 кукича = 1 пакич.</summary>
+        public static SaveData AddKukichi(SaveData data, int amount)
+        {
+            data ??= new SaveData();
+            if (amount <= 0) return data;
+            data.Kukichi += amount;
+            data.Pakichi += amount / 2;
             return data;
         }
     }

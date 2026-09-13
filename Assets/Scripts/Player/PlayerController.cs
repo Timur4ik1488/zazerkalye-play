@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using Zazerkalye.Data;
 using Zazerkalye.Visual;
 
@@ -18,7 +19,7 @@ namespace Zazerkalye.Player
         Vector3 _facing = Vector3.forward;
 
         public Vector3 Facing => _facing;
-        public bool IsInvulnerable => _invuln > 0f || _dashLeft > 0f || _spawnGrace > 0f || _shield;
+        public bool IsInvulnerable => _invuln > 0f || _dashLeft > 0f || _spawnGrace > 0f;
         public bool HasMagnet => _magnet > 0f;
         public bool HasRage => _rage > 0f;
 
@@ -28,8 +29,8 @@ namespace Zazerkalye.Player
         void Awake()
         {
             _cc = GetComponent<CharacterController>();
-            _spawnGrace = MatchConfig.SpawnGrace;
             BuildVisual();
+            ResetForMatch();
         }
 
         void BuildVisual()
@@ -43,23 +44,56 @@ namespace Zazerkalye.Player
             head.transform.localPosition = new Vector3(0f, 1.85f, 0.05f);
             var hood = MeshFactory.Sphere("Hood", new Vector3(0.62f, 0.45f, 0.62f), VisualPalette.PlayerCoat * 0.85f, VisualRoot);
             hood.transform.localPosition = new Vector3(0f, 2.05f, -0.05f);
-            var stick = MeshFactory.Cylinder("Kokalka", new Vector3(0.08f, 0.55f, 0.08f), VisualPalette.Trunk, VisualRoot);
-            stick.transform.localPosition = new Vector3(0.55f, 1.1f, 0.35f);
-            stick.transform.localRotation = Quaternion.Euler(20f, 0f, -25f);
+            // Кокалка — расчёска, не палка.
+            var handle = MeshFactory.Cylinder("KokalkaHandle", new Vector3(0.05f, 0.22f, 0.05f), VisualPalette.Comb, VisualRoot);
+            handle.transform.localPosition = new Vector3(0.58f, 1.05f, 0.32f);
+            handle.transform.localRotation = Quaternion.Euler(25f, 0f, -20f);
+            var plate = MeshFactory.Cylinder("KokalkaPlate", new Vector3(0.22f, 0.04f, 0.08f), VisualPalette.Comb * 1.1f, VisualRoot);
+            plate.transform.localPosition = new Vector3(0.62f, 1.28f, 0.42f);
+            plate.transform.localRotation = Quaternion.Euler(70f, 15f, -10f);
+        }
+
+        public void ResetForMatch()
+        {
+            _dashLeft = _dashCd = _kokCd = _invuln = 0f;
+            _magnet = _rage = _haste = 0f;
+            _shield = false;
+            _swampSlow = 1f;
+            _spawnGrace = MatchConfig.SpawnGrace;
+            _facing = Vector3.forward;
+            if (VisualRoot != null)
+            {
+                VisualRoot.localRotation = Quaternion.identity;
+                VisualRoot.localScale = Vector3.one;
+            }
+        }
+
+        public void Warp(Vector3 position)
+        {
+            if (_cc == null) _cc = GetComponent<CharacterController>();
+            bool wasEnabled = _cc.enabled;
+            _cc.enabled = false;
+            transform.SetPositionAndRotation(position, Quaternion.identity);
+            _cc.enabled = wasEnabled;
         }
 
         void Update()
         {
+            if (!isActiveAndEnabled) return;
             float dt = Time.deltaTime;
             Tick(dt);
 
-            Vector2 input = ReadMove();
+            Vector2 input = ReadMove() + GameplayInput.Stick;
+            if (input.sqrMagnitude > 1f) input.Normalize();
+
             Vector3 camF = Camera.main != null
                 ? Vector3.ProjectOnPlane(Camera.main.transform.forward, Vector3.up).normalized
                 : Vector3.forward;
             Vector3 camR = Camera.main != null
                 ? Vector3.ProjectOnPlane(Camera.main.transform.right, Vector3.up).normalized
                 : Vector3.right;
+            if (camF.sqrMagnitude < 0.01f) camF = Vector3.forward;
+            if (camR.sqrMagnitude < 0.01f) camR = Vector3.right;
 
             Vector3 wish = camF * input.y + camR * input.x;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
@@ -71,11 +105,42 @@ namespace Zazerkalye.Player
                 _facing = wish.normalized;
                 VisualRoot.rotation = Quaternion.Slerp(VisualRoot.rotation, Quaternion.LookRotation(_facing), dt * 12f);
             }
-            vel.y = -2f;
-            _cc.Move(vel * dt);
 
-            if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) TryKok();
-            if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift)) TryDash();
+            vel.y = 0f;
+            _cc.Move(vel * dt);
+            ClampToGrove();
+
+            bool mouseKok = Input.GetMouseButtonDown(0) && !PointerBlockedByUi();
+            if (Input.GetKeyDown(KeyCode.Space) || mouseKok || GameplayInput.ConsumeKok())
+                TryKok();
+            if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift) || GameplayInput.ConsumeDash())
+                TryDash();
+        }
+
+        static bool PointerBlockedByUi()
+        {
+            return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        }
+
+        void ClampToGrove()
+        {
+            var p = transform.position;
+            p.y = 0f;
+            float max = MatchConfig.WorldRadius - 1.2f;
+            if (p.sqrMagnitude > max * max)
+                p = p.normalized * max;
+            if ((transform.position - p).sqrMagnitude > 0.0001f)
+            {
+                _cc.enabled = false;
+                transform.position = p;
+                _cc.enabled = true;
+            }
+            else if (Mathf.Abs(transform.position.y) > 0.001f)
+            {
+                _cc.enabled = false;
+                transform.position = p;
+                _cc.enabled = true;
+            }
         }
 
         Vector2 ReadMove()
