@@ -35,7 +35,9 @@ namespace Zazerkalye.Core
             QualitySettings.vSyncCount = 0;
             GameplayInput.Clear();
 
-            SetupCameraAndLighting();
+            try { SetupCameraAndLighting(); }
+            catch (System.Exception e) { Debug.LogWarning("[Зазеркалье] Lighting skipped: " + e.Message); }
+
             _matchRoot = new GameObject("MatchRoot");
             _matchRoot.transform.SetParent(transform, false);
             _matchRoot.SetActive(false);
@@ -107,21 +109,36 @@ namespace Zazerkalye.Core
             if (cam.GetComponent<ThirdPersonCamera>() == null)
                 cam.gameObject.AddComponent<ThirdPersonCamera>();
 
-            var keyGo = GameObject.Find("KeyLight") ?? new GameObject("KeyLight");
-            _keyLight = keyGo.GetComponent<Light>() ?? keyGo.AddComponent<Light>();
-            _keyLight.type = LightType.Directional;
-            _keyLight.color = VisualPalette.KeyLight;
-            _keyLight.intensity = 1.15f;
-            _keyLight.shadows = LightShadows.Soft;
-            keyGo.transform.rotation = Quaternion.Euler(38f, -35f, 0f);
+            _keyLight = CreateDirectionalLight("KeyLight", VisualPalette.KeyLight, 1.15f, new Vector3(38f, -35f, 0f), LightShadows.Soft);
+            CreateDirectionalLight("FillLight", VisualPalette.FillLight, 0.35f, new Vector3(15f, 140f, 0f), LightShadows.None);
+        }
 
-            var fillGo = GameObject.Find("FillLight") ?? new GameObject("FillLight");
-            var fill = fillGo.GetComponent<Light>() ?? fillGo.AddComponent<Light>();
-            fill.type = LightType.Directional;
-            fill.color = VisualPalette.FillLight;
-            fill.intensity = 0.35f;
-            fill.shadows = LightShadows.None;
-            fillGo.transform.rotation = Quaternion.Euler(15f, 140f, 0f);
+        Light CreateDirectionalLight(string name, Color color, float intensity, Vector3 euler, LightShadows shadows)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(transform, false);
+            go.transform.rotation = Quaternion.Euler(euler);
+            var light = go.GetComponent<Light>();
+            if (light == null) light = go.AddComponent<Light>();
+            if (light == null)
+            {
+                Debug.LogWarning("[Зазеркалье] Light component missing on " + name);
+                return null;
+            }
+            light.type = LightType.Directional;
+            light.color = color;
+            light.intensity = intensity;
+            light.shadows = shadows;
+            try
+            {
+                if (go.GetComponent<UniversalAdditionalLightData>() == null)
+                    go.AddComponent<UniversalAdditionalLightData>();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[Зазеркалье] URP light data skipped: " + e.Message);
+            }
+            return light;
         }
 
         void BuildWorld(Transform root)
